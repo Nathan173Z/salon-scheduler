@@ -190,18 +190,22 @@ function GoogleMark() {
   );
 }
 
-function LoginView({ onClient, onAdmin }: { onClient: () => void; onAdmin: () => void }) {
+function LoginView({ onClient, onAdmin }: { onClient: () => Promise<void>; onAdmin: () => void }) {
   const [loading, setLoading] = useState(false);
   const [adminOpen, setAdminOpen] = useState(false);
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
 
-  const handleGoogle = () => {
+  const handleGoogle = async () => {
     setLoading(true);
-    setTimeout(() => {
+    setError("");
+    try {
+      await onClient();
+    } catch {
+      setError("Não foi possível entrar com Google. Verifica se o login está ativo no Firebase.");
+    } finally {
       setLoading(false);
-      onClient();
-    }, 1500);
+    }
   };
 
   const handleAdmin = () => {
