@@ -476,7 +476,7 @@ function AdminView({
   const [rejecting, setRejecting] = useState<Appointment | null>(null);
   const [blockDate, setBlockDate] = useState(todayISO());
   const [blockTime, setBlockTime] = useState("");
-  const [newService, setNewService] = useState({ name: "", price: "", duration: "" });
+  const [newService, setNewService] = useState({ name: "", price: "", duration: "", description: "" });
   const slots = useMemo(generateTimeSlots, []);
   const pendingCount = appointments.filter((appointment) => appointment.status === "pending").length;
   const dayAppointments = appointments.filter((appointment) => appointment.date === selectedDate).sort((a, b) => a.time.localeCompare(b.time));
@@ -504,8 +504,8 @@ function AdminView({
     const price = Number(newService.price);
     const duration = Number(newService.duration);
     if (!newService.name.trim() || !price || !duration) return;
-    setServices((current) => [{ id: Date.now(), name: newService.name.trim(), price, duration }, ...current]);
-    setNewService({ name: "", price: "", duration: "" });
+    setServices((current) => [{ id: Date.now(), name: newService.name.trim(), price, duration, description: newService.description.trim() }, ...current]);
+    setNewService({ name: "", price: "", duration: "", description: "" });
   };
 
   const sidebarItems: { id: AdminTab; label: string; icon: typeof Calendar }[] = [
@@ -636,6 +636,7 @@ function AdminView({
                 <input className={inputClass} value={newService.name} onChange={(event) => setNewService((current) => ({ ...current, name: event.target.value }))} placeholder="Nome do serviço" />
                 <input className={inputClass} type="number" value={newService.price} onChange={(event) => setNewService((current) => ({ ...current, price: event.target.value }))} placeholder="Preço" />
                 <input className={inputClass} type="number" value={newService.duration} onChange={(event) => setNewService((current) => ({ ...current, duration: event.target.value }))} placeholder="Duração em minutos" />
+                <input className={inputClass} value={newService.description} onChange={(event) => setNewService((current) => ({ ...current, description: event.target.value }))} placeholder="Descrição" />
                 <Button className="w-full" onClick={addService}><Plus className="h-4 w-4" /> Adicionar serviço</Button>
               </div>
             </Panel>
