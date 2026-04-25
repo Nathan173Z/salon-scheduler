@@ -453,6 +453,8 @@ function ClientView({
                   {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <ChevronRight className="h-4 w-4" />}
                   Solicitar Agendamento
                 </Button>
+                {saveError && <p className="text-sm font-semibold text-danger">{saveError}</p>}
+                {saveMessage && <p className="text-sm font-semibold text-success">{saveMessage}</p>}
               </div>
             </aside>
           </div>
