@@ -1,4 +1,6 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { onAuthStateChanged, signInWithPopup, signOut, type User as FirebaseUser } from "firebase/auth";
+import { addDoc, collection, serverTimestamp } from "firebase/firestore";
 import {
   AlertCircle,
   Ban,
@@ -19,6 +21,7 @@ import {
   X,
   XCircle,
 } from "lucide-react";
+import { auth, db, googleProvider } from "./firebase";
 
 type View = "login" | "client" | "admin";
 type AppointmentStatus = "pending" | "confirmed" | "rejected";
@@ -30,10 +33,11 @@ type Service = {
   name: string;
   price: number;
   duration: number;
+  description: string;
 };
 
 type Appointment = {
-  id: number;
+  id: number | string;
   clientId: string;
   clientName: string;
   phone: string;
@@ -47,10 +51,10 @@ type Appointment = {
 const todayISO = () => new Date().toISOString().slice(0, 10);
 
 const initialServices: Service[] = [
-  { id: 1, name: "Manicure clássica", price: 45, duration: 60 },
-  { id: 2, name: "Pedicure spa", price: 65, duration: 75 },
-  { id: 3, name: "Alongamento em gel", price: 140, duration: 120 },
-  { id: 4, name: "Esmaltação em gel", price: 80, duration: 90 },
+  { id: 1, name: "Manicure clássica", price: 45, duration: 60, description: "Cutilagem, lixamento e esmaltação tradicional." },
+  { id: 2, name: "Pedicure spa", price: 65, duration: 75, description: "Tratamento relaxante para pés com acabamento impecável." },
+  { id: 3, name: "Alongamento em gel", price: 140, duration: 120, description: "Extensão em gel com construção resistente e natural." },
+  { id: 4, name: "Esmaltação em gel", price: 80, duration: 90, description: "Esmaltação de alta durabilidade com brilho intenso." },
 ];
 
 const initialAppointments: Appointment[] = [
