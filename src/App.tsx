@@ -1,4 +1,6 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { onAuthStateChanged, signInWithPopup, signOut, type User as FirebaseUser } from "firebase/auth";
+import { addDoc, collection, serverTimestamp } from "firebase/firestore";
 import {
   AlertCircle,
   Ban,
@@ -19,6 +21,7 @@ import {
   X,
   XCircle,
 } from "lucide-react";
+import { auth, db, googleProvider } from "./firebase";
 
 type View = "login" | "client" | "admin";
 type AppointmentStatus = "pending" | "confirmed" | "rejected";
@@ -30,10 +33,11 @@ type Service = {
   name: string;
   price: number;
   duration: number;
+  description: string;
 };
 
 type Appointment = {
-  id: number;
+  id: number | string;
   clientId: string;
   clientName: string;
   phone: string;
@@ -47,10 +51,10 @@ type Appointment = {
 const todayISO = () => new Date().toISOString().slice(0, 10);
 
 const initialServices: Service[] = [
-  { id: 1, name: "Manicure clássica", price: 45, duration: 60 },
-  { id: 2, name: "Pedicure spa", price: 65, duration: 75 },
-  { id: 3, name: "Alongamento em gel", price: 140, duration: 120 },
-  { id: 4, name: "Esmaltação em gel", price: 80, duration: 90 },
+  { id: 1, name: "Manicure clássica", price: 45, duration: 60, description: "Cutilagem, lixamento e esmaltação tradicional." },
+  { id: 2, name: "Pedicure spa", price: 65, duration: 75, description: "Tratamento relaxante para pés com acabamento impecável." },
+  { id: 3, name: "Alongamento em gel", price: 140, duration: 120, description: "Extensão em gel com construção resistente e natural." },
+  { id: 4, name: "Esmaltação em gel", price: 80, duration: 90, description: "Esmaltação de alta durabilidade com brilho intenso." },
 ];
 
 const initialAppointments: Appointment[] = [
@@ -186,18 +190,22 @@ function GoogleMark() {
   );
 }
 
-function LoginView({ onClient, onAdmin }: { onClient: () => void; onAdmin: () => void }) {
+function LoginView({ onClient, onAdmin }: { onClient: () => Promise<void>; onAdmin: () => void }) {
   const [loading, setLoading] = useState(false);
   const [adminOpen, setAdminOpen] = useState(false);
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
 
-  const handleGoogle = () => {
+  const handleGoogle = async () => {
     setLoading(true);
-    setTimeout(() => {
+    setError("");
+    try {
+      await onClient();
+    } catch {
+      setError("Não foi possível entrar com Google. Verifica se o login está ativo no Firebase.");
+    } finally {
       setLoading(false);
-      onClient();
-    }, 1500);
+    }
   };
 
   const handleAdmin = () => {
@@ -259,30 +267,34 @@ function ClientView({
   setAppointments,
   isSlotAvailable,
   onLogout,
+  user,
 }: {
   services: Service[];
   appointments: Appointment[];
   setAppointments: React.Dispatch<React.SetStateAction<Appointment[]>>;
   isSlotAvailable: (date: string, time: string) => boolean;
   onLogout: () => void;
+  user: FirebaseUser;
 }) {
   const [tab, setTab] = useState<ClientTab>("new");
   const [serviceId, setServiceId] = useState<number | null>(services[0]?.id ?? null);
   const [date, setDate] = useState(todayISO());
   const [time, setTime] = useState("");
-  const [clientName, setClientName] = useState("Maria Eduarda");
+  const [clientName, setClientName] = useState(user.displayName ?? "");
+  const [saving, setSaving] = useState(false);
   const [phone, setPhone] = useState("");
   const selectedService = services.find((service) => service.id === serviceId) ?? null;
   const slots = useMemo(generateTimeSlots, []);
   const cleanPhone = phone.replace(/\D/g, "");
   const canSubmit = Boolean(selectedService && date && time && clientName.trim() && cleanPhone.length >= 10);
-  const clientAppointments = appointments.filter((appointment) => appointment.clientId === "client-maria");
+  const clientAppointments = appointments.filter((appointment) => appointment.clientId === user.uid);
 
-  const schedule = () => {
+  const schedule = async () => {
     if (!selectedService || !canSubmit) return;
+    setSaving(true);
     const newAppointment: Appointment = {
       id: Date.now(),
-      clientId: "client-maria",
+      clientId: user.uid,
       clientName: clientName.trim(),
       phone: cleanPhone,
       service: selectedService,
@@ -291,10 +303,27 @@ function ClientView({
       status: "pending",
       createdAt: new Date().toISOString(),
     };
-    setAppointments((current) => [newAppointment, ...current]);
-    setTab("mine");
-    setTime("");
-    setPhone("");
+    try {
+      const docRef = await addDoc(collection(db, "Agendamento"), {
+        name: selectedService.name,
+        price: selectedService.price,
+        duracao: selectedService.duration,
+        descricao: selectedService.description,
+        uid: user.uid,
+        clientName: clientName.trim(),
+        phone: cleanPhone,
+        date,
+        time,
+        status: "pending",
+        createdAt: serverTimestamp(),
+      });
+      setAppointments((current) => [{ ...newAppointment, id: docRef.id }, ...current]);
+      setTab("mine");
+      setTime("");
+      setPhone("");
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -306,7 +335,7 @@ function ClientView({
               <Scissors className="h-6 w-6" />
             </div>
             <div>
-              <p className="text-sm text-muted-foreground">Olá, Maria Eduarda</p>
+              <p className="text-sm text-muted-foreground">Olá, {user.displayName ?? "cliente"}</p>
               <h1 className="text-2xl font-extrabold text-foreground">Teu salão de unhas</h1>
             </div>
           </div>
@@ -389,8 +418,9 @@ function ClientView({
               <div className="mt-5 space-y-3">
                 <input className="h-12 w-full rounded-xl border border-surface-muted/20 bg-surface-muted/10 px-4 text-sm text-surface-dark-foreground outline-none placeholder:text-surface-muted focus:border-primary" value={clientName} onChange={(event) => setClientName(event.target.value)} placeholder="Nome" />
                 <input className="h-12 w-full rounded-xl border border-surface-muted/20 bg-surface-muted/10 px-4 text-sm text-surface-dark-foreground outline-none placeholder:text-surface-muted focus:border-primary" value={phone} onChange={(event) => setPhone(event.target.value)} placeholder="WhatsApp" />
-                <Button className="w-full" onClick={schedule} disabled={!canSubmit}>
-                  Solicitar Agendamento <ChevronRight className="h-4 w-4" />
+                <Button className="w-full" onClick={schedule} disabled={!canSubmit || saving}>
+                  {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <ChevronRight className="h-4 w-4" />}
+                  Solicitar Agendamento
                 </Button>
               </div>
             </aside>
@@ -446,7 +476,7 @@ function AdminView({
   const [rejecting, setRejecting] = useState<Appointment | null>(null);
   const [blockDate, setBlockDate] = useState(todayISO());
   const [blockTime, setBlockTime] = useState("");
-  const [newService, setNewService] = useState({ name: "", price: "", duration: "" });
+  const [newService, setNewService] = useState({ name: "", price: "", duration: "", description: "" });
   const slots = useMemo(generateTimeSlots, []);
   const pendingCount = appointments.filter((appointment) => appointment.status === "pending").length;
   const dayAppointments = appointments.filter((appointment) => appointment.date === selectedDate).sort((a, b) => a.time.localeCompare(b.time));
@@ -474,8 +504,8 @@ function AdminView({
     const price = Number(newService.price);
     const duration = Number(newService.duration);
     if (!newService.name.trim() || !price || !duration) return;
-    setServices((current) => [{ id: Date.now(), name: newService.name.trim(), price, duration }, ...current]);
-    setNewService({ name: "", price: "", duration: "" });
+    setServices((current) => [{ id: Date.now(), name: newService.name.trim(), price, duration, description: newService.description.trim() }, ...current]);
+    setNewService({ name: "", price: "", duration: "", description: "" });
   };
 
   const sidebarItems: { id: AdminTab; label: string; icon: typeof Calendar }[] = [
@@ -606,6 +636,7 @@ function AdminView({
                 <input className={inputClass} value={newService.name} onChange={(event) => setNewService((current) => ({ ...current, name: event.target.value }))} placeholder="Nome do serviço" />
                 <input className={inputClass} type="number" value={newService.price} onChange={(event) => setNewService((current) => ({ ...current, price: event.target.value }))} placeholder="Preço" />
                 <input className={inputClass} type="number" value={newService.duration} onChange={(event) => setNewService((current) => ({ ...current, duration: event.target.value }))} placeholder="Duração em minutos" />
+                <input className={inputClass} value={newService.description} onChange={(event) => setNewService((current) => ({ ...current, description: event.target.value }))} placeholder="Descrição" />
                 <Button className="w-full" onClick={addService}><Plus className="h-4 w-4" /> Adicionar serviço</Button>
               </div>
             </Panel>
@@ -645,9 +676,22 @@ function AdminView({
 
 export default function App() {
   const [view, setView] = useState<View>("login");
+  const [user, setUser] = useState<FirebaseUser | null>(null);
   const [services, setServices] = useState<Service[]>(initialServices);
   const [appointments, setAppointments] = useState<Appointment[]>(initialAppointments);
   const [blockedSlots, setBlockedSlots] = useState<string[]>([`${todayISO()} 12:00`]);
+
+  useEffect(() => onAuthStateChanged(auth, setUser), []);
+
+  const handleGoogleSignIn = async () => {
+    await signInWithPopup(auth, googleProvider);
+    setView("client");
+  };
+
+  const handleLogout = async () => {
+    if (auth.currentUser) await signOut(auth);
+    setView("login");
+  };
 
   const isSlotAvailable = (date: string, time: string) => {
     if (!date || !time) return false;
@@ -661,18 +705,20 @@ export default function App() {
     );
   };
 
-  if (view === "login") return <LoginView onClient={() => setView("client")} onAdmin={() => setView("admin")} />;
-  if (view === "client") {
+  if (view === "login") return <LoginView onClient={handleGoogleSignIn} onAdmin={() => setView("admin")} />;
+  if (view === "client" && user) {
     return (
       <ClientView
         services={services}
         appointments={appointments}
         setAppointments={setAppointments}
         isSlotAvailable={isSlotAvailable}
-        onLogout={() => setView("login")}
+        onLogout={handleLogout}
+        user={user}
       />
     );
   }
+  if (view === "client" && !user) return <LoginView onClient={handleGoogleSignIn} onAdmin={() => setView("admin")} />;
   return (
     <AdminView
       services={services}
@@ -681,7 +727,7 @@ export default function App() {
       setAppointments={setAppointments}
       blockedSlots={blockedSlots}
       setBlockedSlots={setBlockedSlots}
-      onLogout={() => setView("login")}
+      onLogout={handleLogout}
     />
   );
 }
