@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { onAuthStateChanged, signInWithPopup, signOut, type User as FirebaseUser } from "firebase/auth";
-import { addDoc, collection, serverTimestamp } from "firebase/firestore";
+import { Timestamp, addDoc, collection } from "firebase/firestore";
 import {
   AlertCircle,
   Ban,
@@ -289,7 +289,15 @@ function ClientView({
   const selectedService = services.find((service) => service.id === serviceId) ?? null;
   const slots = useMemo(generateTimeSlots, []);
   const cleanPhone = phone.replace(/\D/g, "");
-  const canSubmit = Boolean(formData.name.trim() && Number(formData.price) > 0 && Number(formData.duracao) > 0 && formData.descricao.trim());
+  const canSubmit = Boolean(
+    user.uid &&
+    date &&
+    time &&
+    formData.name.trim() &&
+    Number(formData.price) > 0 &&
+    Number(formData.duracao) > 0 &&
+    formData.descricao.trim(),
+  );
   const clientAppointments = appointments.filter((appointment) => appointment.clientId === user.uid);
 
   useEffect(() => {
@@ -303,10 +311,15 @@ function ClientView({
   }, [selectedService]);
 
   const schedule = async () => {
+    if (!user.uid) {
+      setSaveError("Entra com Google antes de salvar o agendamento.");
+      return;
+    }
     if (!canSubmit) return;
     setSaving(true);
     setSaveMessage("");
     setSaveError("");
+    const scheduledAt = new Date(`${date}T${time}:00`);
     const serviceFromForm: Service = {
       id: selectedService?.id ?? Date.now(),
       name: formData.name.trim(),
@@ -332,10 +345,10 @@ function ClientView({
         duracao: Number(formData.duracao),
         descricao: formData.descricao.trim(),
         clienteId: user.uid,
-        dataCriacao: serverTimestamp(),
+        data_agendada: Timestamp.fromDate(scheduledAt),
       });
       setAppointments((current) => [{ ...newAppointment, id: docRef.id }, ...current]);
-      setSaveMessage("Agendamento salvo no Firestore com sucesso.");
+      setSaveMessage("Agendamento salvo no Firebase com sucesso.");
       setTab("mine");
       setTime("");
       setPhone("");
