@@ -21,7 +21,7 @@ import {
   X,
   XCircle,
 } from "lucide-react";
-import { auth, db, googleProvider } from "./firebase";
+import { auth, db, googleProvider } from "./firebase.js";
 
 type View = "login" | "client" | "admin";
 type AppointmentStatus = "pending" | "confirmed" | "rejected";
@@ -283,21 +283,39 @@ function ClientView({
   const [clientName, setClientName] = useState(user.displayName ?? "");
   const [saving, setSaving] = useState(false);
   const [phone, setPhone] = useState("");
+  const [formData, setFormData] = useState({ name: services[0]?.name ?? "", price: String(services[0]?.price ?? ""), duracao: String(services[0]?.duration ?? ""), descricao: services[0]?.description ?? "" });
   const selectedService = services.find((service) => service.id === serviceId) ?? null;
   const slots = useMemo(generateTimeSlots, []);
   const cleanPhone = phone.replace(/\D/g, "");
-  const canSubmit = Boolean(selectedService && date && time && clientName.trim() && cleanPhone.length >= 10);
+  const canSubmit = Boolean(formData.name.trim() && Number(formData.price) > 0 && Number(formData.duracao) > 0 && formData.descricao.trim() && date && time && clientName.trim() && cleanPhone.length >= 10);
   const clientAppointments = appointments.filter((appointment) => appointment.clientId === user.uid);
 
+  useEffect(() => {
+    if (!selectedService) return;
+    setFormData({
+      name: selectedService.name,
+      price: String(selectedService.price),
+      duracao: String(selectedService.duration),
+      descricao: selectedService.description,
+    });
+  }, [selectedService]);
+
   const schedule = async () => {
-    if (!selectedService || !canSubmit) return;
+    if (!canSubmit) return;
     setSaving(true);
+    const serviceFromForm: Service = {
+      id: selectedService?.id ?? Date.now(),
+      name: formData.name.trim(),
+      price: Number(formData.price),
+      duration: Number(formData.duracao),
+      description: formData.descricao.trim(),
+    };
     const newAppointment: Appointment = {
       id: Date.now(),
       clientId: user.uid,
       clientName: clientName.trim(),
       phone: cleanPhone,
-      service: selectedService,
+      service: serviceFromForm,
       date,
       time,
       status: "pending",
@@ -305,17 +323,12 @@ function ClientView({
     };
     try {
       const docRef = await addDoc(collection(db, "Agendamento"), {
-        name: selectedService.name,
-        price: selectedService.price,
-        duracao: selectedService.duration,
-        descricao: selectedService.description,
-        uid: user.uid,
-        clientName: clientName.trim(),
-        phone: cleanPhone,
-        date,
-        time,
-        status: "pending",
-        createdAt: serverTimestamp(),
+        name: serviceFromForm.name,
+        price: serviceFromForm.price,
+        duracao: serviceFromForm.duration,
+        descricao: serviceFromForm.description,
+        clienteId: user.uid,
+        dataCriacao: serverTimestamp(),
       });
       setAppointments((current) => [{ ...newAppointment, id: docRef.id }, ...current]);
       setTab("mine");
