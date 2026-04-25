@@ -2,95 +2,98 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
-All colors MUST be HSL.
-*/
-
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
+    --background: 36 43% 96%;
+    --foreground: 24 22% 18%;
 
-    --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
+    --card: 40 56% 99%;
+    --card-foreground: 24 22% 18%;
 
-    --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
+    --popover: 40 56% 99%;
+    --popover-foreground: 24 22% 18%;
 
-    --primary: 222.2 47.4% 11.2%;
-    --primary-foreground: 210 40% 98%;
+    --primary: 347 63% 62%;
+    --primary-foreground: 0 0% 100%;
+    --primary-glow: 351 88% 78%;
 
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
+    --secondary: 18 38% 90%;
+    --secondary-foreground: 23 26% 24%;
 
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
+    --muted: 31 31% 90%;
+    --muted-foreground: 25 12% 45%;
 
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
+    --accent: 151 34% 84%;
+    --accent-foreground: 158 35% 20%;
 
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
+    --destructive: 0 68% 58%;
+    --destructive-foreground: 0 0% 100%;
 
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 222.2 84% 4.9%;
+    --border: 24 27% 86%;
+    --input: 24 27% 86%;
+    --ring: 347 63% 62%;
 
-    --radius: 0.5rem;
+    --success: 151 45% 38%;
+    --success-foreground: 0 0% 100%;
+    --warning: 33 88% 50%;
+    --warning-foreground: 27 44% 16%;
+    --danger: 0 68% 58%;
+    --danger-foreground: 0 0% 100%;
+    --rose-soft: 350 77% 93%;
+    --surface-dark: 24 22% 18%;
+    --surface-dark-foreground: 35 44% 96%;
+    --surface-muted: 26 18% 72%;
 
-    --sidebar-background: 0 0% 98%;
+    --gradient-page: radial-gradient(circle at 15% 15%, hsl(var(--rose-soft)) 0, transparent 30%), radial-gradient(circle at 85% 20%, hsl(var(--accent)) 0, transparent 26%), linear-gradient(135deg, hsl(var(--background)), hsl(34 46% 92%));
+    --gradient-primary: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--primary-glow)));
+    --shadow-soft: 0 18px 55px -28px hsl(var(--surface-dark) / 0.32);
+    --shadow-float: 0 28px 80px -32px hsl(var(--surface-dark) / 0.48);
+    --shadow-glow: 0 14px 34px -18px hsl(var(--primary) / 0.9);
 
-    --sidebar-foreground: 240 5.3% 26.1%;
+    --radius: 1rem;
 
-    --sidebar-primary: 240 5.9% 10%;
-
-    --sidebar-primary-foreground: 0 0% 98%;
-
-    --sidebar-accent: 240 4.8% 95.9%;
-
-    --sidebar-accent-foreground: 240 5.9% 10%;
-
-    --sidebar-border: 220 13% 91%;
-
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    --sidebar-background: 24 22% 18%;
+    --sidebar-foreground: 35 44% 96%;
+    --sidebar-primary: 347 63% 62%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 24 18% 25%;
+    --sidebar-accent-foreground: 35 44% 96%;
+    --sidebar-border: 24 16% 28%;
+    --sidebar-ring: 347 63% 62%;
   }
 
   .dark {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
-
-    --card: 222.2 84% 4.9%;
-    --card-foreground: 210 40% 98%;
-
-    --popover: 222.2 84% 4.9%;
-    --popover-foreground: 210 40% 98%;
-
-    --primary: 210 40% 98%;
-    --primary-foreground: 222.2 47.4% 11.2%;
-
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
-
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
-
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
-
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
-
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 212.7 26.8% 83.9%;
-    --sidebar-background: 240 5.9% 10%;
-    --sidebar-foreground: 240 4.8% 95.9%;
-    --sidebar-primary: 224.3 76.3% 48%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 240 3.7% 15.9%;
-    --sidebar-accent-foreground: 240 4.8% 95.9%;
-    --sidebar-border: 240 3.7% 15.9%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    --background: 24 22% 14%;
+    --foreground: 35 44% 96%;
+    --card: 24 19% 18%;
+    --card-foreground: 35 44% 96%;
+    --popover: 24 19% 18%;
+    --popover-foreground: 35 44% 96%;
+    --primary: 347 70% 70%;
+    --primary-foreground: 24 22% 14%;
+    --primary-glow: 351 88% 78%;
+    --secondary: 24 16% 24%;
+    --secondary-foreground: 35 44% 96%;
+    --muted: 24 16% 24%;
+    --muted-foreground: 26 18% 72%;
+    --accent: 151 30% 28%;
+    --accent-foreground: 151 55% 90%;
+    --destructive: 0 68% 58%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 24 16% 28%;
+    --input: 24 16% 28%;
+    --ring: 347 70% 70%;
+    --success: 151 48% 48%;
+    --success-foreground: 0 0% 100%;
+    --warning: 35 92% 58%;
+    --warning-foreground: 27 44% 16%;
+    --danger: 0 68% 62%;
+    --danger-foreground: 0 0% 100%;
+    --rose-soft: 347 35% 24%;
+    --surface-dark: 24 22% 11%;
+    --surface-dark-foreground: 35 44% 96%;
+    --surface-muted: 26 18% 72%;
+    --gradient-page: linear-gradient(135deg, hsl(var(--background)), hsl(24 22% 11%));
   }
 }
 
@@ -99,7 +102,41 @@ All colors MUST be HSL.
     @apply border-border;
   }
 
+  html {
+    scroll-behavior: smooth;
+  }
+
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground antialiased;
+    font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  }
+
+  button,
+  input,
+  select {
+    font: inherit;
+  }
+}
+
+@layer utilities {
+  .salon-shell {
+    background: var(--gradient-page);
+    position: relative;
+  }
+
+  .salon-shell::before {
+    content: "";
+    position: absolute;
+    inset: -20%;
+    background-image: linear-gradient(115deg, transparent 35%, hsl(var(--primary) / 0.14), transparent 65%);
+    transform: translateX(-20%);
+    animation: shimmer-sweep 8s ease-in-out infinite;
+    pointer-events: none;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .salon-shell::before {
+      animation: none;
+    }
   }
 }
