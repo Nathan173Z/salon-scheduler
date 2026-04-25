@@ -344,9 +344,13 @@ function ClientView({
       <header className="border-b border-border bg-card/80 backdrop-blur-xl">
         <div className="mx-auto flex max-w-7xl flex-col gap-4 px-4 py-5 sm:flex-row sm:items-center sm:justify-between lg:px-8">
           <div className="flex items-center gap-3">
-            <div className="grid h-12 w-12 place-items-center rounded-2xl bg-rose-soft text-primary">
-              <Scissors className="h-6 w-6" />
-            </div>
+            {user.photoURL ? (
+              <img src={user.photoURL} alt={user.displayName ?? "Foto do usuário"} className="h-12 w-12 rounded-2xl object-cover" />
+            ) : (
+              <div className="grid h-12 w-12 place-items-center rounded-2xl bg-rose-soft text-primary">
+                <User className="h-6 w-6" />
+              </div>
+            )}
             <div>
               <p className="text-sm text-muted-foreground">Olá, {user.displayName ?? "cliente"}</p>
               <h1 className="text-2xl font-extrabold text-foreground">Teu salão de unhas</h1>
@@ -429,6 +433,12 @@ function ClientView({
                 <div className="flex justify-between gap-4"><span className="text-surface-muted">Horário</span><strong>{time || "—"}</strong></div>
               </div>
               <div className="mt-5 space-y-3">
+                <input className="h-12 w-full rounded-xl border border-surface-muted/20 bg-surface-muted/10 px-4 text-sm text-surface-dark-foreground outline-none placeholder:text-surface-muted focus:border-primary" value={formData.name} onChange={(event) => setFormData((current) => ({ ...current, name: event.target.value }))} placeholder="name" />
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <input className="h-12 w-full rounded-xl border border-surface-muted/20 bg-surface-muted/10 px-4 text-sm text-surface-dark-foreground outline-none placeholder:text-surface-muted focus:border-primary" type="number" value={formData.price} onChange={(event) => setFormData((current) => ({ ...current, price: event.target.value }))} placeholder="price" />
+                  <input className="h-12 w-full rounded-xl border border-surface-muted/20 bg-surface-muted/10 px-4 text-sm text-surface-dark-foreground outline-none placeholder:text-surface-muted focus:border-primary" type="number" value={formData.duracao} onChange={(event) => setFormData((current) => ({ ...current, duracao: event.target.value }))} placeholder="duracao" />
+                </div>
+                <textarea className="min-h-24 w-full rounded-xl border border-surface-muted/20 bg-surface-muted/10 px-4 py-3 text-sm text-surface-dark-foreground outline-none placeholder:text-surface-muted focus:border-primary" value={formData.descricao} onChange={(event) => setFormData((current) => ({ ...current, descricao: event.target.value }))} placeholder="descricao" />
                 <input className="h-12 w-full rounded-xl border border-surface-muted/20 bg-surface-muted/10 px-4 text-sm text-surface-dark-foreground outline-none placeholder:text-surface-muted focus:border-primary" value={clientName} onChange={(event) => setClientName(event.target.value)} placeholder="Nome" />
                 <input className="h-12 w-full rounded-xl border border-surface-muted/20 bg-surface-muted/10 px-4 text-sm text-surface-dark-foreground outline-none placeholder:text-surface-muted focus:border-primary" value={phone} onChange={(event) => setPhone(event.target.value)} placeholder="WhatsApp" />
                 <Button className="w-full" onClick={schedule} disabled={!canSubmit || saving}>
