@@ -676,9 +676,22 @@ function AdminView({
 
 export default function App() {
   const [view, setView] = useState<View>("login");
+  const [user, setUser] = useState<FirebaseUser | null>(null);
   const [services, setServices] = useState<Service[]>(initialServices);
   const [appointments, setAppointments] = useState<Appointment[]>(initialAppointments);
   const [blockedSlots, setBlockedSlots] = useState<string[]>([`${todayISO()} 12:00`]);
+
+  useEffect(() => onAuthStateChanged(auth, setUser), []);
+
+  const handleGoogleSignIn = async () => {
+    await signInWithPopup(auth, googleProvider);
+    setView("client");
+  };
+
+  const handleLogout = async () => {
+    if (auth.currentUser) await signOut(auth);
+    setView("login");
+  };
 
   const isSlotAvailable = (date: string, time: string) => {
     if (!date || !time) return false;
@@ -692,18 +705,20 @@ export default function App() {
     );
   };
 
-  if (view === "login") return <LoginView onClient={() => setView("client")} onAdmin={() => setView("admin")} />;
-  if (view === "client") {
+  if (view === "login") return <LoginView onClient={handleGoogleSignIn} onAdmin={() => setView("admin")} />;
+  if (view === "client" && user) {
     return (
       <ClientView
         services={services}
         appointments={appointments}
         setAppointments={setAppointments}
         isSlotAvailable={isSlotAvailable}
-        onLogout={() => setView("login")}
+        onLogout={handleLogout}
+        user={user}
       />
     );
   }
+  if (view === "client" && !user) return <LoginView onClient={handleGoogleSignIn} onAdmin={() => setView("admin")} />;
   return (
     <AdminView
       services={services}
@@ -712,7 +727,7 @@ export default function App() {
       setAppointments={setAppointments}
       blockedSlots={blockedSlots}
       setBlockedSlots={setBlockedSlots}
-      onLogout={() => setView("login")}
+      onLogout={handleLogout}
     />
   );
 }
