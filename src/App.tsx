@@ -282,12 +282,14 @@ function ClientView({
   const [time, setTime] = useState("");
   const [clientName, setClientName] = useState(user.displayName ?? "");
   const [saving, setSaving] = useState(false);
+  const [saveMessage, setSaveMessage] = useState("");
+  const [saveError, setSaveError] = useState("");
   const [phone, setPhone] = useState("");
   const [formData, setFormData] = useState({ name: services[0]?.name ?? "", price: String(services[0]?.price ?? ""), duracao: String(services[0]?.duration ?? ""), descricao: services[0]?.description ?? "" });
   const selectedService = services.find((service) => service.id === serviceId) ?? null;
   const slots = useMemo(generateTimeSlots, []);
   const cleanPhone = phone.replace(/\D/g, "");
-  const canSubmit = Boolean(formData.name.trim() && Number(formData.price) > 0 && Number(formData.duracao) > 0 && formData.descricao.trim() && date && time && clientName.trim() && cleanPhone.length >= 10);
+  const canSubmit = Boolean(formData.name.trim() && Number(formData.price) > 0 && Number(formData.duracao) > 0 && formData.descricao.trim());
   const clientAppointments = appointments.filter((appointment) => appointment.clientId === user.uid);
 
   useEffect(() => {
@@ -303,6 +305,8 @@ function ClientView({
   const schedule = async () => {
     if (!canSubmit) return;
     setSaving(true);
+    setSaveMessage("");
+    setSaveError("");
     const serviceFromForm: Service = {
       id: selectedService?.id ?? Date.now(),
       name: formData.name.trim(),
@@ -323,17 +327,21 @@ function ClientView({
     };
     try {
       const docRef = await addDoc(collection(db, "Agendamento"), {
-        name: serviceFromForm.name,
-        price: serviceFromForm.price,
-        duracao: serviceFromForm.duration,
-        descricao: serviceFromForm.description,
+        name: formData.name.trim(),
+        price: Number(formData.price),
+        duracao: Number(formData.duracao),
+        descricao: formData.descricao.trim(),
         clienteId: user.uid,
         dataCriacao: serverTimestamp(),
       });
       setAppointments((current) => [{ ...newAppointment, id: docRef.id }, ...current]);
+      setSaveMessage("Agendamento salvo no Firestore com sucesso.");
       setTab("mine");
       setTime("");
       setPhone("");
+    } catch (error) {
+      console.error("Erro ao salvar agendamento no Firestore:", error);
+      setSaveError("Não foi possível salvar. Verifica se o Firestore está criado e se as regras permitem escrita para usuário logado.");
     } finally {
       setSaving(false);
     }
@@ -445,6 +453,8 @@ function ClientView({
                   {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <ChevronRight className="h-4 w-4" />}
                   Solicitar Agendamento
                 </Button>
+                {saveError && <p className="text-sm font-semibold text-danger">{saveError}</p>}
+                {saveMessage && <p className="text-sm font-semibold text-success">{saveMessage}</p>}
               </div>
             </aside>
           </div>
