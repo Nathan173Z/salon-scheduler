@@ -267,30 +267,34 @@ function ClientView({
   setAppointments,
   isSlotAvailable,
   onLogout,
+  user,
 }: {
   services: Service[];
   appointments: Appointment[];
   setAppointments: React.Dispatch<React.SetStateAction<Appointment[]>>;
   isSlotAvailable: (date: string, time: string) => boolean;
   onLogout: () => void;
+  user: FirebaseUser;
 }) {
   const [tab, setTab] = useState<ClientTab>("new");
   const [serviceId, setServiceId] = useState<number | null>(services[0]?.id ?? null);
   const [date, setDate] = useState(todayISO());
   const [time, setTime] = useState("");
-  const [clientName, setClientName] = useState("Maria Eduarda");
+  const [clientName, setClientName] = useState(user.displayName ?? "");
+  const [saving, setSaving] = useState(false);
   const [phone, setPhone] = useState("");
   const selectedService = services.find((service) => service.id === serviceId) ?? null;
   const slots = useMemo(generateTimeSlots, []);
   const cleanPhone = phone.replace(/\D/g, "");
   const canSubmit = Boolean(selectedService && date && time && clientName.trim() && cleanPhone.length >= 10);
-  const clientAppointments = appointments.filter((appointment) => appointment.clientId === "client-maria");
+  const clientAppointments = appointments.filter((appointment) => appointment.clientId === user.uid);
 
-  const schedule = () => {
+  const schedule = async () => {
     if (!selectedService || !canSubmit) return;
+    setSaving(true);
     const newAppointment: Appointment = {
       id: Date.now(),
-      clientId: "client-maria",
+      clientId: user.uid,
       clientName: clientName.trim(),
       phone: cleanPhone,
       service: selectedService,
@@ -299,10 +303,27 @@ function ClientView({
       status: "pending",
       createdAt: new Date().toISOString(),
     };
-    setAppointments((current) => [newAppointment, ...current]);
-    setTab("mine");
-    setTime("");
-    setPhone("");
+    try {
+      const docRef = await addDoc(collection(db, "Agendamento"), {
+        name: selectedService.name,
+        price: selectedService.price,
+        duracao: selectedService.duration,
+        descricao: selectedService.description,
+        uid: user.uid,
+        clientName: clientName.trim(),
+        phone: cleanPhone,
+        date,
+        time,
+        status: "pending",
+        createdAt: serverTimestamp(),
+      });
+      setAppointments((current) => [{ ...newAppointment, id: docRef.id }, ...current]);
+      setTab("mine");
+      setTime("");
+      setPhone("");
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -314,7 +335,7 @@ function ClientView({
               <Scissors className="h-6 w-6" />
             </div>
             <div>
-              <p className="text-sm text-muted-foreground">Olá, Maria Eduarda</p>
+              <p className="text-sm text-muted-foreground">Olá, {user.displayName ?? "cliente"}</p>
               <h1 className="text-2xl font-extrabold text-foreground">Teu salão de unhas</h1>
             </div>
           </div>
@@ -397,8 +418,9 @@ function ClientView({
               <div className="mt-5 space-y-3">
                 <input className="h-12 w-full rounded-xl border border-surface-muted/20 bg-surface-muted/10 px-4 text-sm text-surface-dark-foreground outline-none placeholder:text-surface-muted focus:border-primary" value={clientName} onChange={(event) => setClientName(event.target.value)} placeholder="Nome" />
                 <input className="h-12 w-full rounded-xl border border-surface-muted/20 bg-surface-muted/10 px-4 text-sm text-surface-dark-foreground outline-none placeholder:text-surface-muted focus:border-primary" value={phone} onChange={(event) => setPhone(event.target.value)} placeholder="WhatsApp" />
-                <Button className="w-full" onClick={schedule} disabled={!canSubmit}>
-                  Solicitar Agendamento <ChevronRight className="h-4 w-4" />
+                <Button className="w-full" onClick={schedule} disabled={!canSubmit || saving}>
+                  {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <ChevronRight className="h-4 w-4" />}
+                  Solicitar Agendamento
                 </Button>
               </div>
             </aside>
