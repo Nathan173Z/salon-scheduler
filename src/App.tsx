@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { onAuthStateChanged, signInWithPopup, signOut, type User as FirebaseUser } from "firebase/auth";
-import { Timestamp, addDoc, collection } from "firebase/firestore";
+import { Timestamp, addDoc, collection, deleteDoc, doc, onSnapshot, orderBy, query, serverTimestamp, updateDoc } from "firebase/firestore";
 import {
   AlertCircle,
   Ban,
@@ -29,7 +29,7 @@ type AdminTab = "agenda" | "availability" | "services";
 type ClientTab = "new" | "mine";
 
 type Service = {
-  id: number;
+  id: string;
   name: string;
   price: number;
   duration: number;
@@ -50,37 +50,11 @@ type Appointment = {
 
 const todayISO = () => new Date().toISOString().slice(0, 10);
 
-const initialServices: Service[] = [
-  { id: 1, name: "Manicure clássica", price: 45, duration: 60, description: "Cutilagem, lixamento e esmaltação tradicional." },
-  { id: 2, name: "Pedicure spa", price: 65, duration: 75, description: "Tratamento relaxante para pés com acabamento impecável." },
-  { id: 3, name: "Alongamento em gel", price: 140, duration: 120, description: "Extensão em gel com construção resistente e natural." },
-  { id: 4, name: "Esmaltação em gel", price: 80, duration: 90, description: "Esmaltação de alta durabilidade com brilho intenso." },
-];
-
-const initialAppointments: Appointment[] = [
-  {
-    id: 101,
-    clientId: "client-maria",
-    clientName: "Maria Eduarda",
-    phone: "11987654321",
-    service: initialServices[1],
-    date: todayISO(),
-    time: "09:00",
-    status: "confirmed",
-    createdAt: new Date().toISOString(),
-  },
-  {
-    id: 102,
-    clientId: "client-ana",
-    clientName: "Ana Clara",
-    phone: "21988887777",
-    service: initialServices[2],
-    date: todayISO(),
-    time: "14:30",
-    status: "pending",
-    createdAt: new Date().toISOString(),
-  },
-];
+const parseFirebaseDate = (value: unknown) => {
+  if (value instanceof Timestamp) return value.toDate();
+  if (value && typeof value === "object" && "toDate" in value && typeof value.toDate === "function") return value.toDate();
+  return null;
+};
 
 const generateTimeSlots = () => {
   const slots: string[] = [];
