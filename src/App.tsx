@@ -50,6 +50,13 @@ type Appointment = {
 
 const todayISO = () => new Date().toISOString().slice(0, 10);
 
+const toLocalISODate = (date: Date) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+
 const parseFirebaseDate = (value: unknown) => {
   if (value instanceof Timestamp) return value.toDate();
   if (value && typeof value === "object" && "toDate" in value && typeof value.toDate === "function") return value.toDate();
@@ -515,9 +522,13 @@ function AdminView({
     window.open(`https://wa.me/55${digits}?text=${encodeURIComponent(text)}`, "_blank");
   };
 
-  const updateStatus = (appointment: Appointment, status: AppointmentStatus) => {
-    setAppointments((current) => current.map((item) => (item.id === appointment.id ? { ...item, status } : item)));
-    if (status === "confirmed" || status === "rejected") openWhatsApp(appointment, status);
+  const updateStatus = async (appointment: Appointment, status: AppointmentStatus) => {
+    try {
+      await updateDoc(doc(db, "Agendamento", String(appointment.id)), { status });
+      if (status === "confirmed" || status === "rejected") openWhatsApp(appointment, status);
+    } catch (error) {
+      console.error("Erro ao atualizar agendamento no Firestore:", error);
+    }
   };
 
   const addBlock = (withTime: boolean) => {
@@ -525,12 +536,30 @@ function AdminView({
     setBlockedSlots((current) => (current.includes(value) ? current : [value, ...current]));
   };
 
-  const addService = () => {
+  const addService = async () => {
     const price = Number(newService.price);
     const duration = Number(newService.duration);
     if (!newService.name.trim() || !price || !duration) return;
-    setServices((current) => [{ id: Date.now(), name: newService.name.trim(), price, duration, description: newService.description.trim() }, ...current]);
-    setNewService({ name: "", price: "", duration: "", description: "" });
+    try {
+      await addDoc(collection(db, "Servicos"), {
+        name: newService.name.trim(),
+        price,
+        duracao: duration,
+        descricao: newService.description.trim(),
+        dataCriacao: serverTimestamp(),
+      });
+      setNewService({ name: "", price: "", duration: "", description: "" });
+    } catch (error) {
+      console.error("Erro ao salvar serviço no Firestore:", error);
+    }
+  };
+
+  const deleteService = async (serviceId: string) => {
+    try {
+      await deleteDoc(doc(db, "Servicos", serviceId));
+    } catch (error) {
+      console.error("Erro ao excluir serviço no Firestore:", error);
+    }
   };
 
   const sidebarItems: { id: AdminTab; label: string; icon: typeof Calendar }[] = [
