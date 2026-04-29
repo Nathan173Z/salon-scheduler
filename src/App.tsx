@@ -251,7 +251,7 @@ function ClientView({
   user: FirebaseUser;
 }) {
   const [tab, setTab] = useState<ClientTab>("new");
-  const [serviceId, setServiceId] = useState<number | null>(services[0]?.id ?? null);
+  const [serviceId, setServiceId] = useState<string | null>(services[0]?.id ?? null);
   const [date, setDate] = useState(todayISO());
   const [time, setTime] = useState("");
   const [clientName, setClientName] = useState(user.displayName ?? "");
@@ -295,7 +295,7 @@ function ClientView({
     setSaveError("");
     const scheduledAt = new Date(`${date}T${time}:00`);
     const serviceFromForm: Service = {
-      id: selectedService?.id ?? Date.now(),
+      id: selectedService?.id ?? "manual-service",
       name: formData.name.trim(),
       price: Number(formData.price),
       duration: Number(formData.duracao),
@@ -319,7 +319,12 @@ function ClientView({
         duracao: Number(formData.duracao),
         descricao: formData.descricao.trim(),
         clienteId: user.uid,
+        clientName: clientName.trim() || user.displayName || "Cliente",
+        phone: cleanPhone,
+        serviceId: selectedService?.id ?? null,
+        status: "pending",
         data_agendada: Timestamp.fromDate(scheduledAt),
+        dataCriacao: serverTimestamp(),
       });
       setAppointments((current) => [{ ...newAppointment, id: docRef.id }, ...current]);
       setSaveMessage("Agendamento salvo no Firebase com sucesso.");
