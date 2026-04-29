@@ -7,7 +7,7 @@ import {
   signOut,
   type User as FirebaseUser,
 } from "firebase/auth";
-import { Timestamp, addDoc, collection, deleteDoc, doc, onSnapshot, serverTimestamp, updateDoc } from "firebase/firestore";
+import { Timestamp, addDoc, collection, deleteDoc, doc, onSnapshot, serverTimestamp, setDoc, updateDoc } from "firebase/firestore";
 import {
   AlertCircle,
   Ban,
@@ -82,6 +82,8 @@ const generateTimeSlots = () => {
 
 const formatBRL = (value: number) =>
   new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value);
+
+const blockDocId = (value: string) => encodeURIComponent(value);
 
 const statusMeta: Record<AppointmentStatus, { label: string; icon: typeof Clock; className: string }> = {
   pending: { label: "Pendente", icon: Clock, className: "bg-warning/15 text-warning border-warning/25" },
@@ -579,9 +581,29 @@ function AdminView({
     }
   };
 
-  const addBlock = (withTime: boolean) => {
+  const addBlock = async (withTime: boolean) => {
     const value = withTime && blockTime ? `${blockDate} ${blockTime}` : blockDate;
-    setBlockedSlots((current) => (current.includes(value) ? current : [value, ...current]));
+    try {
+      await setDoc(doc(db, "Bloqueios", blockDocId(value)), {
+        value,
+        date: blockDate,
+        time: withTime && blockTime ? blockTime : "",
+        wholeDay: !withTime || !blockTime,
+        dataCriacao: serverTimestamp(),
+      });
+      setBlockedSlots((current) => (current.includes(value) ? current : [value, ...current]));
+    } catch (error) {
+      console.error("Erro ao salvar bloqueio no Firestore:", error);
+    }
+  };
+
+  const removeBlock = async (value: string) => {
+    try {
+      await deleteDoc(doc(db, "Bloqueios", blockDocId(value)));
+      setBlockedSlots((current) => current.filter((item) => item !== value));
+    } catch (error) {
+      console.error("Erro ao excluir bloqueio no Firestore:", error);
+    }
   };
 
   const addService = async () => {
@@ -719,7 +741,7 @@ function AdminView({
                 {blockedSlots.map((slot) => (
                   <div key={slot} className="flex items-center justify-between rounded-2xl bg-muted p-4">
                     <span className="font-semibold">{slot.includes(" ") ? slot : `${slot} • dia inteiro`}</span>
-                    <button className="rounded-full p-2 text-danger transition hover:bg-danger/10" onClick={() => setBlockedSlots((current) => current.filter((item) => item !== slot))}>
+                    <button className="rounded-full p-2 text-danger transition hover:bg-danger/10" onClick={() => removeBlock(slot)}>
                       <Trash2 className="h-4 w-4" />
                     </button>
                   </div>
@@ -827,6 +849,17 @@ export default function App() {
       });
       setAppointments(loadedAppointments.sort((a, b) => `${b.date} ${b.time}`.localeCompare(`${a.date} ${a.time}`)));
     }, (error) => console.error("Erro ao carregar agenda do Firestore:", error));
+  }, []);
+
+  useEffect(() => {
+    return onSnapshot(collection(db, "Bloqueios"), (snapshot) => {
+      setBlockedSlots(snapshot.docs.map((blockDoc) => {
+        const data = blockDoc.data();
+        const date = String(data.date ?? "");
+        const time = String(data.time ?? "");
+        return String(data.value ?? (date && time ? `${date} ${time}` : date));
+      }).filter(Boolean));
+    }, (error) => console.error("Erro ao carregar bloqueios do Firestore:", error));
   }, []);
 
   const handleGoogleSignIn = async () => {
