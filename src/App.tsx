@@ -282,6 +282,10 @@ function ClientView({
   const clientAppointments = appointments.filter((appointment) => appointment.clientId === user.uid);
 
   useEffect(() => {
+    if (!serviceId && services[0]) setServiceId(services[0].id);
+  }, [serviceId, services]);
+
+  useEffect(() => {
     if (!selectedService) return;
     setFormData({
       name: selectedService.name,
