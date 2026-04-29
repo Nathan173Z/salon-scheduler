@@ -844,6 +844,15 @@ export default function App() {
     setView("client");
   };
 
+  const handleEmailAuth = async (email: string, password: string, mode: "login" | "signup") => {
+    if (mode === "signup") {
+      await createUserWithEmailAndPassword(auth, email, password);
+    } else {
+      await signInWithEmailAndPassword(auth, email, password);
+    }
+    setView("client");
+  };
+
   const handleLogout = async () => {
     if (auth.currentUser) await signOut(auth);
     setView("login");
@@ -861,7 +870,7 @@ export default function App() {
     );
   };
 
-  if (view === "login") return <LoginView onClient={handleGoogleSignIn} onAdmin={() => setView("admin")} />;
+  if (view === "login") return <LoginView onClient={handleGoogleSignIn} onEmailAuth={handleEmailAuth} onAdmin={() => setView("admin")} />;
   if (view === "client" && user) {
     return (
       <ClientView
@@ -874,7 +883,7 @@ export default function App() {
       />
     );
   }
-  if (view === "client" && !user) return <LoginView onClient={handleGoogleSignIn} onAdmin={() => setView("admin")} />;
+  if (view === "client" && !user) return <LoginView onClient={handleGoogleSignIn} onEmailAuth={handleEmailAuth} onAdmin={() => setView("admin")} />;
   return (
     <AdminView
       services={services}
