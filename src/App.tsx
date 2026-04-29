@@ -251,6 +251,24 @@ function LoginView({
             {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : <GoogleMark />}
             Entrar com Google
           </Button>
+          <div className="rounded-2xl bg-muted p-4 text-left">
+            <div className="mb-3 grid grid-cols-2 gap-2">
+              <Button variant={emailMode === "login" ? "primary" : "secondary"} onClick={() => setEmailMode("login")} type="button">
+                Entrar
+              </Button>
+              <Button variant={emailMode === "signup" ? "primary" : "secondary"} onClick={() => setEmailMode("signup")} type="button">
+                Cadastrar
+              </Button>
+            </div>
+            <div className="space-y-3">
+              <input className={inputClass} type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="Email" autoComplete="email" />
+              <input className={inputClass} type="password" value={emailPassword} onChange={(event) => setEmailPassword(event.target.value)} placeholder="Senha" autoComplete={emailMode === "login" ? "current-password" : "new-password"} />
+              <Button className="w-full" onClick={handleEmail} disabled={emailLoading || !email.trim() || emailPassword.length < 6}>
+                {emailLoading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Lock className="h-5 w-5" />}
+                {emailMode === "login" ? "Entrar com email" : "Criar conta"}
+              </Button>
+            </div>
+          </div>
           <Button variant="dark" className="w-full" onClick={() => setAdminOpen((open) => !open)}>
             <Shield className="h-5 w-5" />
             Acesso Admin
@@ -266,12 +284,12 @@ function LoginView({
                 <Lock className="h-4 w-4" />
               </Button>
             </div>
-            {error && (
-              <p className="mt-3 flex items-center gap-2 text-sm font-medium text-danger">
-                <AlertCircle className="h-4 w-4" /> {error}
-              </p>
-            )}
           </div>
+        )}
+        {error && (
+          <p className="mt-4 flex items-center gap-2 text-sm font-medium text-danger">
+            <AlertCircle className="h-4 w-4" /> {error}
+          </p>
         )}
       </Panel>
     </main>
