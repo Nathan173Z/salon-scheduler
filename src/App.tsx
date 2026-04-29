@@ -702,7 +702,7 @@ function AdminView({
                       <h3 className="text-lg font-bold">{service.name}</h3>
                       <p className="mt-2 text-sm text-muted-foreground">{service.duration} min • {formatBRL(service.price)}</p>
                     </div>
-                    <button className="rounded-full p-2 text-danger transition hover:bg-danger/10" onClick={() => setServices((current) => current.filter((item) => item.id !== service.id))}>
+                    <button className="rounded-full p-2 text-danger transition hover:bg-danger/10" onClick={() => deleteService(service.id)}>
                       <Trash2 className="h-5 w-5" />
                     </button>
                   </div>
@@ -731,11 +731,56 @@ function AdminView({
 export default function App() {
   const [view, setView] = useState<View>("login");
   const [user, setUser] = useState<FirebaseUser | null>(null);
-  const [services, setServices] = useState<Service[]>(initialServices);
-  const [appointments, setAppointments] = useState<Appointment[]>(initialAppointments);
+  const [services, setServices] = useState<Service[]>([]);
+  const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [blockedSlots, setBlockedSlots] = useState<string[]>([`${todayISO()} 12:00`]);
 
   useEffect(() => onAuthStateChanged(auth, setUser), []);
+
+  useEffect(() => {
+    const servicesQuery = query(collection(db, "Servicos"), orderBy("dataCriacao", "desc"));
+    return onSnapshot(servicesQuery, (snapshot) => {
+      setServices(snapshot.docs.map((serviceDoc) => {
+        const data = serviceDoc.data();
+        return {
+          id: serviceDoc.id,
+          name: String(data.name ?? ""),
+          price: Number(data.price ?? 0),
+          duration: Number(data.duracao ?? data.duration ?? 0),
+          description: String(data.descricao ?? data.description ?? ""),
+        };
+      }));
+    }, (error) => console.error("Erro ao carregar serviços do Firestore:", error));
+  }, []);
+
+  useEffect(() => {
+    const appointmentsQuery = query(collection(db, "Agendamento"), orderBy("data_agendada", "desc"));
+    return onSnapshot(appointmentsQuery, (snapshot) => {
+      setAppointments(snapshot.docs.map((appointmentDoc) => {
+        const data = appointmentDoc.data();
+        const scheduledAt = parseFirebaseDate(data.data_agendada);
+        const fallbackName = String(data.name ?? "");
+        const service: Service = {
+          id: String(data.serviceId ?? appointmentDoc.id),
+          name: fallbackName,
+          price: Number(data.price ?? 0),
+          duration: Number(data.duracao ?? 0),
+          description: String(data.descricao ?? ""),
+        };
+        return {
+          id: appointmentDoc.id,
+          clientId: String(data.clienteId ?? data.clientId ?? ""),
+          clientName: String(data.clientName ?? "Cliente"),
+          phone: String(data.phone ?? ""),
+          service,
+          date: scheduledAt ? toLocalISODate(scheduledAt) : todayISO(),
+          time: scheduledAt ? scheduledAt.toTimeString().slice(0, 5) : "",
+          status: (data.status as AppointmentStatus) ?? "pending",
+          createdAt: parseFirebaseDate(data.dataCriacao)?.toISOString() ?? "",
+        };
+      }));
+    }, (error) => console.error("Erro ao carregar agenda do Firestore:", error));
+  }, []);
 
   const handleGoogleSignIn = async () => {
     await signInWithPopup(auth, googleProvider);
