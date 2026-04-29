@@ -178,8 +178,20 @@ function GoogleMark() {
   );
 }
 
-function LoginView({ onClient, onAdmin }: { onClient: () => Promise<void>; onAdmin: () => void }) {
+function LoginView({
+  onClient,
+  onEmailAuth,
+  onAdmin,
+}: {
+  onClient: () => Promise<void>;
+  onEmailAuth: (email: string, password: string, mode: "login" | "signup") => Promise<void>;
+  onAdmin: () => void;
+}) {
   const [loading, setLoading] = useState(false);
+  const [emailLoading, setEmailLoading] = useState(false);
+  const [emailMode, setEmailMode] = useState<"login" | "signup">("login");
+  const [email, setEmail] = useState("");
+  const [emailPassword, setEmailPassword] = useState("");
   const [adminOpen, setAdminOpen] = useState(false);
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -203,6 +215,23 @@ function LoginView({ onClient, onAdmin }: { onClient: () => Promise<void>; onAdm
       return;
     }
     setError("Senha incorreta. Tenta novamente.");
+  };
+
+  const handleEmail = async () => {
+    setEmailLoading(true);
+    setError("");
+    try {
+      await onEmailAuth(email.trim(), emailPassword, emailMode);
+    } catch (authError) {
+      console.error("Erro no login por email e senha:", authError);
+      setError(
+        emailMode === "login"
+          ? "Não foi possível entrar. Confere o email, a senha e se Email/Senha está ativo no Firebase."
+          : "Não foi possível cadastrar. A senha precisa ter pelo menos 6 caracteres e Email/Senha deve estar ativo no Firebase.",
+      );
+    } finally {
+      setEmailLoading(false);
+    }
   };
 
   return (
