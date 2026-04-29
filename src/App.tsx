@@ -486,12 +486,6 @@ function ClientView({
                 <div className="flex justify-between gap-4"><span className="text-surface-muted">Horário</span><strong>{time || "—"}</strong></div>
               </div>
               <div className="mt-5 space-y-3">
-                <input className="h-12 w-full rounded-xl border border-surface-muted/20 bg-surface-muted/10 px-4 text-sm text-surface-dark-foreground outline-none placeholder:text-surface-muted focus:border-primary" value={formData.name} onChange={(event) => setFormData((current) => ({ ...current, name: event.target.value }))} placeholder="name" />
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <input className="h-12 w-full rounded-xl border border-surface-muted/20 bg-surface-muted/10 px-4 text-sm text-surface-dark-foreground outline-none placeholder:text-surface-muted focus:border-primary" type="number" value={formData.price} onChange={(event) => setFormData((current) => ({ ...current, price: event.target.value }))} placeholder="price" />
-                  <input className="h-12 w-full rounded-xl border border-surface-muted/20 bg-surface-muted/10 px-4 text-sm text-surface-dark-foreground outline-none placeholder:text-surface-muted focus:border-primary" type="number" value={formData.duracao} onChange={(event) => setFormData((current) => ({ ...current, duracao: event.target.value }))} placeholder="duracao" />
-                </div>
-                <textarea className="min-h-24 w-full rounded-xl border border-surface-muted/20 bg-surface-muted/10 px-4 py-3 text-sm text-surface-dark-foreground outline-none placeholder:text-surface-muted focus:border-primary" value={formData.descricao} onChange={(event) => setFormData((current) => ({ ...current, descricao: event.target.value }))} placeholder="descricao" />
                 <input className="h-12 w-full rounded-xl border border-surface-muted/20 bg-surface-muted/10 px-4 text-sm text-surface-dark-foreground outline-none placeholder:text-surface-muted focus:border-primary" value={clientName} onChange={(event) => setClientName(event.target.value)} placeholder="Nome" />
                 <input className="h-12 w-full rounded-xl border border-surface-muted/20 bg-surface-muted/10 px-4 text-sm text-surface-dark-foreground outline-none placeholder:text-surface-muted focus:border-primary" value={phone} onChange={(event) => setPhone(event.target.value)} placeholder="WhatsApp" />
                 <Button className="w-full" onClick={schedule} disabled={!canSubmit || saving}>
