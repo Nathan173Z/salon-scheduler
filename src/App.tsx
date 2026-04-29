@@ -320,34 +320,22 @@ function ClientView({
   const [saveMessage, setSaveMessage] = useState("");
   const [saveError, setSaveError] = useState("");
   const [phone, setPhone] = useState("");
-  const [formData, setFormData] = useState({ name: services[0]?.name ?? "", price: String(services[0]?.price ?? ""), duracao: String(services[0]?.duration ?? ""), descricao: services[0]?.description ?? "" });
   const selectedService = services.find((service) => service.id === serviceId) ?? null;
   const slots = useMemo(generateTimeSlots, []);
   const cleanPhone = phone.replace(/\D/g, "");
   const canSubmit = Boolean(
     user.uid &&
+    selectedService &&
     date &&
     time &&
-    formData.name.trim() &&
-    Number(formData.price) > 0 &&
-    Number(formData.duracao) > 0 &&
-    formData.descricao.trim(),
+    clientName.trim() &&
+    cleanPhone.length >= 10,
   );
   const clientAppointments = appointments.filter((appointment) => appointment.clientId === user.uid);
 
   useEffect(() => {
     if (!serviceId && services[0]) setServiceId(services[0].id);
   }, [serviceId, services]);
-
-  useEffect(() => {
-    if (!selectedService) return;
-    setFormData({
-      name: selectedService.name,
-      price: String(selectedService.price),
-      duracao: String(selectedService.duration),
-      descricao: selectedService.description,
-    });
-  }, [selectedService]);
 
   const schedule = async () => {
     if (!user.uid) {
@@ -361,10 +349,10 @@ function ClientView({
     const scheduledAt = new Date(`${date}T${time}:00`);
     const serviceFromForm: Service = {
       id: selectedService?.id ?? "manual-service",
-      name: formData.name.trim(),
-      price: Number(formData.price),
-      duration: Number(formData.duracao),
-      description: formData.descricao.trim(),
+      name: selectedService?.name ?? "",
+      price: selectedService?.price ?? 0,
+      duration: selectedService?.duration ?? 0,
+      description: selectedService?.description ?? "",
     };
     const newAppointment: Appointment = {
       id: Date.now(),
@@ -379,10 +367,10 @@ function ClientView({
     };
     try {
       const docRef = await addDoc(collection(db, "Agendamento"), {
-        name: formData.name.trim(),
-        price: Number(formData.price),
-        duracao: Number(formData.duracao),
-        descricao: formData.descricao.trim(),
+        name: selectedService?.name ?? "",
+        price: selectedService?.price ?? 0,
+        duracao: selectedService?.duration ?? 0,
+        descricao: selectedService?.description ?? "",
         clienteId: user.uid,
         clientName: clientName.trim() || user.displayName || "Cliente",
         phone: cleanPhone,
