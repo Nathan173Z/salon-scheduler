@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { onAuthStateChanged, signInWithPopup, signOut, type User as FirebaseUser } from "firebase/auth";
-import { Timestamp, addDoc, collection, deleteDoc, doc, onSnapshot, orderBy, query, serverTimestamp, updateDoc } from "firebase/firestore";
+import { Timestamp, addDoc, collection, deleteDoc, doc, onSnapshot, serverTimestamp, updateDoc } from "firebase/firestore";
 import {
   AlertCircle,
   Ban,
@@ -742,8 +742,7 @@ export default function App() {
   useEffect(() => onAuthStateChanged(auth, setUser), []);
 
   useEffect(() => {
-    const servicesQuery = query(collection(db, "Servicos"), orderBy("dataCriacao", "desc"));
-    return onSnapshot(servicesQuery, (snapshot) => {
+    return onSnapshot(collection(db, "Servicos"), (snapshot) => {
       setServices(snapshot.docs.map((serviceDoc) => {
         const data = serviceDoc.data();
         return {
@@ -758,9 +757,8 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    const appointmentsQuery = query(collection(db, "Agendamento"), orderBy("data_agendada", "desc"));
-    return onSnapshot(appointmentsQuery, (snapshot) => {
-      setAppointments(snapshot.docs.map((appointmentDoc) => {
+    return onSnapshot(collection(db, "Agendamento"), (snapshot) => {
+      const loadedAppointments = snapshot.docs.map((appointmentDoc) => {
         const data = appointmentDoc.data();
         const scheduledAt = parseFirebaseDate(data.data_agendada);
         const fallbackName = String(data.name ?? "");
@@ -782,7 +780,8 @@ export default function App() {
           status: (data.status as AppointmentStatus) ?? "pending",
           createdAt: parseFirebaseDate(data.dataCriacao)?.toISOString() ?? "",
         };
-      }));
+      });
+      setAppointments(loadedAppointments.sort((a, b) => `${b.date} ${b.time}`.localeCompare(`${a.date} ${a.time}`)));
     }, (error) => console.error("Erro ao carregar agenda do Firestore:", error));
   }, []);
 
