@@ -7,7 +7,7 @@ import {
   signOut,
   type User as FirebaseUser,
 } from "firebase/auth";
-import { Timestamp, addDoc, collection, deleteDoc, doc, onSnapshot, serverTimestamp, updateDoc } from "firebase/firestore";
+import { Timestamp, addDoc, collection, deleteDoc, doc, onSnapshot, serverTimestamp, setDoc, updateDoc } from "firebase/firestore";
 import {
   AlertCircle,
   Ban,
@@ -82,6 +82,8 @@ const generateTimeSlots = () => {
 
 const formatBRL = (value: number) =>
   new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value);
+
+const blockDocId = (value: string) => encodeURIComponent(value);
 
 const statusMeta: Record<AppointmentStatus, { label: string; icon: typeof Clock; className: string }> = {
   pending: { label: "Pendente", icon: Clock, className: "bg-warning/15 text-warning border-warning/25" },
