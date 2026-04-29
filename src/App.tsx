@@ -320,34 +320,22 @@ function ClientView({
   const [saveMessage, setSaveMessage] = useState("");
   const [saveError, setSaveError] = useState("");
   const [phone, setPhone] = useState("");
-  const [formData, setFormData] = useState({ name: services[0]?.name ?? "", price: String(services[0]?.price ?? ""), duracao: String(services[0]?.duration ?? ""), descricao: services[0]?.description ?? "" });
   const selectedService = services.find((service) => service.id === serviceId) ?? null;
   const slots = useMemo(generateTimeSlots, []);
   const cleanPhone = phone.replace(/\D/g, "");
   const canSubmit = Boolean(
     user.uid &&
+    selectedService &&
     date &&
     time &&
-    formData.name.trim() &&
-    Number(formData.price) > 0 &&
-    Number(formData.duracao) > 0 &&
-    formData.descricao.trim(),
+    clientName.trim() &&
+    cleanPhone.length >= 10,
   );
   const clientAppointments = appointments.filter((appointment) => appointment.clientId === user.uid);
 
   useEffect(() => {
     if (!serviceId && services[0]) setServiceId(services[0].id);
   }, [serviceId, services]);
-
-  useEffect(() => {
-    if (!selectedService) return;
-    setFormData({
-      name: selectedService.name,
-      price: String(selectedService.price),
-      duracao: String(selectedService.duration),
-      descricao: selectedService.description,
-    });
-  }, [selectedService]);
 
   const schedule = async () => {
     if (!user.uid) {
@@ -361,10 +349,10 @@ function ClientView({
     const scheduledAt = new Date(`${date}T${time}:00`);
     const serviceFromForm: Service = {
       id: selectedService?.id ?? "manual-service",
-      name: formData.name.trim(),
-      price: Number(formData.price),
-      duration: Number(formData.duracao),
-      description: formData.descricao.trim(),
+      name: selectedService?.name ?? "",
+      price: selectedService?.price ?? 0,
+      duration: selectedService?.duration ?? 0,
+      description: selectedService?.description ?? "",
     };
     const newAppointment: Appointment = {
       id: Date.now(),
@@ -379,10 +367,10 @@ function ClientView({
     };
     try {
       const docRef = await addDoc(collection(db, "Agendamento"), {
-        name: formData.name.trim(),
-        price: Number(formData.price),
-        duracao: Number(formData.duracao),
-        descricao: formData.descricao.trim(),
+        name: selectedService?.name ?? "",
+        price: selectedService?.price ?? 0,
+        duracao: selectedService?.duration ?? 0,
+        descricao: selectedService?.description ?? "",
         clienteId: user.uid,
         clientName: clientName.trim() || user.displayName || "Cliente",
         phone: cleanPhone,
@@ -498,12 +486,6 @@ function ClientView({
                 <div className="flex justify-between gap-4"><span className="text-surface-muted">Horário</span><strong>{time || "—"}</strong></div>
               </div>
               <div className="mt-5 space-y-3">
-                <input className="h-12 w-full rounded-xl border border-surface-muted/20 bg-surface-muted/10 px-4 text-sm text-surface-dark-foreground outline-none placeholder:text-surface-muted focus:border-primary" value={formData.name} onChange={(event) => setFormData((current) => ({ ...current, name: event.target.value }))} placeholder="name" />
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <input className="h-12 w-full rounded-xl border border-surface-muted/20 bg-surface-muted/10 px-4 text-sm text-surface-dark-foreground outline-none placeholder:text-surface-muted focus:border-primary" type="number" value={formData.price} onChange={(event) => setFormData((current) => ({ ...current, price: event.target.value }))} placeholder="price" />
-                  <input className="h-12 w-full rounded-xl border border-surface-muted/20 bg-surface-muted/10 px-4 text-sm text-surface-dark-foreground outline-none placeholder:text-surface-muted focus:border-primary" type="number" value={formData.duracao} onChange={(event) => setFormData((current) => ({ ...current, duracao: event.target.value }))} placeholder="duracao" />
-                </div>
-                <textarea className="min-h-24 w-full rounded-xl border border-surface-muted/20 bg-surface-muted/10 px-4 py-3 text-sm text-surface-dark-foreground outline-none placeholder:text-surface-muted focus:border-primary" value={formData.descricao} onChange={(event) => setFormData((current) => ({ ...current, descricao: event.target.value }))} placeholder="descricao" />
                 <input className="h-12 w-full rounded-xl border border-surface-muted/20 bg-surface-muted/10 px-4 text-sm text-surface-dark-foreground outline-none placeholder:text-surface-muted focus:border-primary" value={clientName} onChange={(event) => setClientName(event.target.value)} placeholder="Nome" />
                 <input className="h-12 w-full rounded-xl border border-surface-muted/20 bg-surface-muted/10 px-4 text-sm text-surface-dark-foreground outline-none placeholder:text-surface-muted focus:border-primary" value={phone} onChange={(event) => setPhone(event.target.value)} placeholder="WhatsApp" />
                 <Button className="w-full" onClick={schedule} disabled={!canSubmit || saving}>
