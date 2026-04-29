@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { onAuthStateChanged, signInWithPopup, signOut, type User as FirebaseUser } from "firebase/auth";
-import { Timestamp, addDoc, collection } from "firebase/firestore";
+import { Timestamp, addDoc, collection, deleteDoc, doc, onSnapshot, serverTimestamp, updateDoc } from "firebase/firestore";
 import {
   AlertCircle,
   Ban,
@@ -29,7 +29,7 @@ type AdminTab = "agenda" | "availability" | "services";
 type ClientTab = "new" | "mine";
 
 type Service = {
-  id: number;
+  id: string;
   name: string;
   price: number;
   duration: number;
@@ -50,37 +50,18 @@ type Appointment = {
 
 const todayISO = () => new Date().toISOString().slice(0, 10);
 
-const initialServices: Service[] = [
-  { id: 1, name: "Manicure clássica", price: 45, duration: 60, description: "Cutilagem, lixamento e esmaltação tradicional." },
-  { id: 2, name: "Pedicure spa", price: 65, duration: 75, description: "Tratamento relaxante para pés com acabamento impecável." },
-  { id: 3, name: "Alongamento em gel", price: 140, duration: 120, description: "Extensão em gel com construção resistente e natural." },
-  { id: 4, name: "Esmaltação em gel", price: 80, duration: 90, description: "Esmaltação de alta durabilidade com brilho intenso." },
-];
+const toLocalISODate = (date: Date) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
 
-const initialAppointments: Appointment[] = [
-  {
-    id: 101,
-    clientId: "client-maria",
-    clientName: "Maria Eduarda",
-    phone: "11987654321",
-    service: initialServices[1],
-    date: todayISO(),
-    time: "09:00",
-    status: "confirmed",
-    createdAt: new Date().toISOString(),
-  },
-  {
-    id: 102,
-    clientId: "client-ana",
-    clientName: "Ana Clara",
-    phone: "21988887777",
-    service: initialServices[2],
-    date: todayISO(),
-    time: "14:30",
-    status: "pending",
-    createdAt: new Date().toISOString(),
-  },
-];
+const parseFirebaseDate = (value: unknown) => {
+  if (value instanceof Timestamp) return value.toDate();
+  if (value && typeof value === "object" && "toDate" in value && typeof value.toDate === "function") return value.toDate();
+  return null;
+};
 
 const generateTimeSlots = () => {
   const slots: string[] = [];
@@ -277,7 +258,7 @@ function ClientView({
   user: FirebaseUser;
 }) {
   const [tab, setTab] = useState<ClientTab>("new");
-  const [serviceId, setServiceId] = useState<number | null>(services[0]?.id ?? null);
+  const [serviceId, setServiceId] = useState<string | null>(services[0]?.id ?? null);
   const [date, setDate] = useState(todayISO());
   const [time, setTime] = useState("");
   const [clientName, setClientName] = useState(user.displayName ?? "");
@@ -301,6 +282,10 @@ function ClientView({
   const clientAppointments = appointments.filter((appointment) => appointment.clientId === user.uid);
 
   useEffect(() => {
+    if (!serviceId && services[0]) setServiceId(services[0].id);
+  }, [serviceId, services]);
+
+  useEffect(() => {
     if (!selectedService) return;
     setFormData({
       name: selectedService.name,
@@ -321,7 +306,7 @@ function ClientView({
     setSaveError("");
     const scheduledAt = new Date(`${date}T${time}:00`);
     const serviceFromForm: Service = {
-      id: selectedService?.id ?? Date.now(),
+      id: selectedService?.id ?? "manual-service",
       name: formData.name.trim(),
       price: Number(formData.price),
       duration: Number(formData.duracao),
@@ -345,7 +330,12 @@ function ClientView({
         duracao: Number(formData.duracao),
         descricao: formData.descricao.trim(),
         clienteId: user.uid,
+        clientName: clientName.trim() || user.displayName || "Cliente",
+        phone: cleanPhone,
+        serviceId: selectedService?.id ?? null,
+        status: "pending",
         data_agendada: Timestamp.fromDate(scheduledAt),
+        dataCriacao: serverTimestamp(),
       });
       setAppointments((current) => [{ ...newAppointment, id: docRef.id }, ...current]);
       setSaveMessage("Agendamento salvo no Firebase com sucesso.");
@@ -536,9 +526,13 @@ function AdminView({
     window.open(`https://wa.me/55${digits}?text=${encodeURIComponent(text)}`, "_blank");
   };
 
-  const updateStatus = (appointment: Appointment, status: AppointmentStatus) => {
-    setAppointments((current) => current.map((item) => (item.id === appointment.id ? { ...item, status } : item)));
-    if (status === "confirmed" || status === "rejected") openWhatsApp(appointment, status);
+  const updateStatus = async (appointment: Appointment, status: AppointmentStatus) => {
+    try {
+      await updateDoc(doc(db, "Agendamento", String(appointment.id)), { status });
+      if (status === "confirmed" || status === "rejected") openWhatsApp(appointment, status);
+    } catch (error) {
+      console.error("Erro ao atualizar agendamento no Firestore:", error);
+    }
   };
 
   const addBlock = (withTime: boolean) => {
@@ -546,12 +540,30 @@ function AdminView({
     setBlockedSlots((current) => (current.includes(value) ? current : [value, ...current]));
   };
 
-  const addService = () => {
+  const addService = async () => {
     const price = Number(newService.price);
     const duration = Number(newService.duration);
     if (!newService.name.trim() || !price || !duration) return;
-    setServices((current) => [{ id: Date.now(), name: newService.name.trim(), price, duration, description: newService.description.trim() }, ...current]);
-    setNewService({ name: "", price: "", duration: "", description: "" });
+    try {
+      await addDoc(collection(db, "Servicos"), {
+        name: newService.name.trim(),
+        price,
+        duracao: duration,
+        descricao: newService.description.trim(),
+        dataCriacao: serverTimestamp(),
+      });
+      setNewService({ name: "", price: "", duration: "", description: "" });
+    } catch (error) {
+      console.error("Erro ao salvar serviço no Firestore:", error);
+    }
+  };
+
+  const deleteService = async (serviceId: string) => {
+    try {
+      await deleteDoc(doc(db, "Servicos", serviceId));
+    } catch (error) {
+      console.error("Erro ao excluir serviço no Firestore:", error);
+    }
   };
 
   const sidebarItems: { id: AdminTab; label: string; icon: typeof Calendar }[] = [
@@ -694,7 +706,7 @@ function AdminView({
                       <h3 className="text-lg font-bold">{service.name}</h3>
                       <p className="mt-2 text-sm text-muted-foreground">{service.duration} min • {formatBRL(service.price)}</p>
                     </div>
-                    <button className="rounded-full p-2 text-danger transition hover:bg-danger/10" onClick={() => setServices((current) => current.filter((item) => item.id !== service.id))}>
+                    <button className="rounded-full p-2 text-danger transition hover:bg-danger/10" onClick={() => deleteService(service.id)}>
                       <Trash2 className="h-5 w-5" />
                     </button>
                   </div>
@@ -723,11 +735,55 @@ function AdminView({
 export default function App() {
   const [view, setView] = useState<View>("login");
   const [user, setUser] = useState<FirebaseUser | null>(null);
-  const [services, setServices] = useState<Service[]>(initialServices);
-  const [appointments, setAppointments] = useState<Appointment[]>(initialAppointments);
+  const [services, setServices] = useState<Service[]>([]);
+  const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [blockedSlots, setBlockedSlots] = useState<string[]>([`${todayISO()} 12:00`]);
 
   useEffect(() => onAuthStateChanged(auth, setUser), []);
+
+  useEffect(() => {
+    return onSnapshot(collection(db, "Servicos"), (snapshot) => {
+      setServices(snapshot.docs.map((serviceDoc) => {
+        const data = serviceDoc.data();
+        return {
+          id: serviceDoc.id,
+          name: String(data.name ?? ""),
+          price: Number(data.price ?? 0),
+          duration: Number(data.duracao ?? data.duration ?? 0),
+          description: String(data.descricao ?? data.description ?? ""),
+        };
+      }));
+    }, (error) => console.error("Erro ao carregar serviços do Firestore:", error));
+  }, []);
+
+  useEffect(() => {
+    return onSnapshot(collection(db, "Agendamento"), (snapshot) => {
+      const loadedAppointments = snapshot.docs.map((appointmentDoc) => {
+        const data = appointmentDoc.data();
+        const scheduledAt = parseFirebaseDate(data.data_agendada);
+        const fallbackName = String(data.name ?? "");
+        const service: Service = {
+          id: String(data.serviceId ?? appointmentDoc.id),
+          name: fallbackName,
+          price: Number(data.price ?? 0),
+          duration: Number(data.duracao ?? 0),
+          description: String(data.descricao ?? ""),
+        };
+        return {
+          id: appointmentDoc.id,
+          clientId: String(data.clienteId ?? data.clientId ?? ""),
+          clientName: String(data.clientName ?? "Cliente"),
+          phone: String(data.phone ?? ""),
+          service,
+          date: scheduledAt ? toLocalISODate(scheduledAt) : todayISO(),
+          time: scheduledAt ? scheduledAt.toTimeString().slice(0, 5) : "",
+          status: (data.status as AppointmentStatus) ?? "pending",
+          createdAt: parseFirebaseDate(data.dataCriacao)?.toISOString() ?? "",
+        };
+      });
+      setAppointments(loadedAppointments.sort((a, b) => `${b.date} ${b.time}`.localeCompare(`${a.date} ${a.time}`)));
+    }, (error) => console.error("Erro ao carregar agenda do Firestore:", error));
+  }, []);
 
   const handleGoogleSignIn = async () => {
     await signInWithPopup(auth, googleProvider);
