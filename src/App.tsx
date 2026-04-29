@@ -851,6 +851,17 @@ export default function App() {
     }, (error) => console.error("Erro ao carregar agenda do Firestore:", error));
   }, []);
 
+  useEffect(() => {
+    return onSnapshot(collection(db, "Bloqueios"), (snapshot) => {
+      setBlockedSlots(snapshot.docs.map((blockDoc) => {
+        const data = blockDoc.data();
+        const date = String(data.date ?? "");
+        const time = String(data.time ?? "");
+        return String(data.value ?? (date && time ? `${date} ${time}` : date));
+      }).filter(Boolean));
+    }, (error) => console.error("Erro ao carregar bloqueios do Firestore:", error));
+  }, []);
+
   const handleGoogleSignIn = async () => {
     await signInWithPopup(auth, googleProvider);
     setView("client");
