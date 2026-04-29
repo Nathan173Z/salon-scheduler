@@ -581,9 +581,29 @@ function AdminView({
     }
   };
 
-  const addBlock = (withTime: boolean) => {
+  const addBlock = async (withTime: boolean) => {
     const value = withTime && blockTime ? `${blockDate} ${blockTime}` : blockDate;
-    setBlockedSlots((current) => (current.includes(value) ? current : [value, ...current]));
+    try {
+      await setDoc(doc(db, "Bloqueios", blockDocId(value)), {
+        value,
+        date: blockDate,
+        time: withTime && blockTime ? blockTime : "",
+        wholeDay: !withTime || !blockTime,
+        dataCriacao: serverTimestamp(),
+      });
+      setBlockedSlots((current) => (current.includes(value) ? current : [value, ...current]));
+    } catch (error) {
+      console.error("Erro ao salvar bloqueio no Firestore:", error);
+    }
+  };
+
+  const removeBlock = async (value: string) => {
+    try {
+      await deleteDoc(doc(db, "Bloqueios", blockDocId(value)));
+      setBlockedSlots((current) => current.filter((item) => item !== value));
+    } catch (error) {
+      console.error("Erro ao excluir bloqueio no Firestore:", error);
+    }
   };
 
   const addService = async () => {
@@ -721,7 +741,7 @@ function AdminView({
                 {blockedSlots.map((slot) => (
                   <div key={slot} className="flex items-center justify-between rounded-2xl bg-muted p-4">
                     <span className="font-semibold">{slot.includes(" ") ? slot : `${slot} • dia inteiro`}</span>
-                    <button className="rounded-full p-2 text-danger transition hover:bg-danger/10" onClick={() => setBlockedSlots((current) => current.filter((item) => item !== slot))}>
+                    <button className="rounded-full p-2 text-danger transition hover:bg-danger/10" onClick={() => removeBlock(slot)}>
                       <Trash2 className="h-4 w-4" />
                     </button>
                   </div>
