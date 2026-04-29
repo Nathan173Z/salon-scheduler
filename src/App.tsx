@@ -342,6 +342,14 @@ function ClientView({
       setSaveError("Entra com Google antes de salvar o agendamento.");
       return;
     }
+    if (!clientName.trim()) {
+      setSaveError("Escreve teu nome para solicitar o agendamento.");
+      return;
+    }
+    if (cleanPhone.length < 10) {
+      setSaveError("Escreve um telefone válido com DDD para solicitar o agendamento.");
+      return;
+    }
     if (!canSubmit) return;
     setSaving(true);
     setSaveMessage("");
@@ -486,8 +494,8 @@ function ClientView({
                 <div className="flex justify-between gap-4"><span className="text-surface-muted">Horário</span><strong>{time || "—"}</strong></div>
               </div>
               <div className="mt-5 space-y-3">
-                <input className="h-12 w-full rounded-xl border border-surface-muted/20 bg-surface-muted/10 px-4 text-sm text-surface-dark-foreground outline-none placeholder:text-surface-muted focus:border-primary" value={clientName} onChange={(event) => setClientName(event.target.value)} placeholder="Nome" />
-                <input className="h-12 w-full rounded-xl border border-surface-muted/20 bg-surface-muted/10 px-4 text-sm text-surface-dark-foreground outline-none placeholder:text-surface-muted focus:border-primary" value={phone} onChange={(event) => setPhone(event.target.value)} placeholder="WhatsApp" />
+                <input className="h-12 w-full rounded-xl border border-surface-muted/20 bg-surface-muted/10 px-4 text-sm text-surface-dark-foreground outline-none placeholder:text-surface-muted focus:border-primary" value={clientName} onChange={(event) => setClientName(event.target.value)} placeholder="Nome obrigatório" required />
+                <input className="h-12 w-full rounded-xl border border-surface-muted/20 bg-surface-muted/10 px-4 text-sm text-surface-dark-foreground outline-none placeholder:text-surface-muted focus:border-primary" value={phone} onChange={(event) => setPhone(event.target.value)} placeholder="Telefone obrigatório" inputMode="tel" required />
                 <Button className="w-full" onClick={schedule} disabled={!canSubmit || saving}>
                   {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <ChevronRight className="h-4 w-4" />}
                   Solicitar Agendamento
