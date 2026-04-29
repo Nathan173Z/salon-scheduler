@@ -1,5 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
-import { onAuthStateChanged, signInWithPopup, signOut, type User as FirebaseUser } from "firebase/auth";
+import {
+  createUserWithEmailAndPassword,
+  onAuthStateChanged,
+  signInWithEmailAndPassword,
+  signInWithPopup,
+  signOut,
+  type User as FirebaseUser,
+} from "firebase/auth";
 import { Timestamp, addDoc, collection, deleteDoc, doc, onSnapshot, serverTimestamp, updateDoc } from "firebase/firestore";
 import {
   AlertCircle,
@@ -171,8 +178,20 @@ function GoogleMark() {
   );
 }
 
-function LoginView({ onClient, onAdmin }: { onClient: () => Promise<void>; onAdmin: () => void }) {
+function LoginView({
+  onClient,
+  onEmailAuth,
+  onAdmin,
+}: {
+  onClient: () => Promise<void>;
+  onEmailAuth: (email: string, password: string, mode: "login" | "signup") => Promise<void>;
+  onAdmin: () => void;
+}) {
   const [loading, setLoading] = useState(false);
+  const [emailLoading, setEmailLoading] = useState(false);
+  const [emailMode, setEmailMode] = useState<"login" | "signup">("login");
+  const [email, setEmail] = useState("");
+  const [emailPassword, setEmailPassword] = useState("");
   const [adminOpen, setAdminOpen] = useState(false);
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -198,6 +217,23 @@ function LoginView({ onClient, onAdmin }: { onClient: () => Promise<void>; onAdm
     setError("Senha incorreta. Tenta novamente.");
   };
 
+  const handleEmail = async () => {
+    setEmailLoading(true);
+    setError("");
+    try {
+      await onEmailAuth(email.trim(), emailPassword, emailMode);
+    } catch (authError) {
+      console.error("Erro no login por email e senha:", authError);
+      setError(
+        emailMode === "login"
+          ? "Não foi possível entrar. Confere o email, a senha e se Email/Senha está ativo no Firebase."
+          : "Não foi possível cadastrar. A senha precisa ter pelo menos 6 caracteres e Email/Senha deve estar ativo no Firebase.",
+      );
+    } finally {
+      setEmailLoading(false);
+    }
+  };
+
   return (
     <main className="salon-shell grid min-h-screen place-items-center overflow-hidden px-4 py-10">
       <Panel className="relative z-10 w-full max-w-md animate-fade-up p-8">
@@ -215,6 +251,24 @@ function LoginView({ onClient, onAdmin }: { onClient: () => Promise<void>; onAdm
             {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : <GoogleMark />}
             Entrar com Google
           </Button>
+          <div className="rounded-2xl bg-muted p-4 text-left">
+            <div className="mb-3 grid grid-cols-2 gap-2">
+              <Button variant={emailMode === "login" ? "primary" : "secondary"} onClick={() => setEmailMode("login")} type="button">
+                Entrar
+              </Button>
+              <Button variant={emailMode === "signup" ? "primary" : "secondary"} onClick={() => setEmailMode("signup")} type="button">
+                Cadastrar
+              </Button>
+            </div>
+            <div className="space-y-3">
+              <input className={inputClass} type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="Email" autoComplete="email" />
+              <input className={inputClass} type="password" value={emailPassword} onChange={(event) => setEmailPassword(event.target.value)} placeholder="Senha" autoComplete={emailMode === "login" ? "current-password" : "new-password"} />
+              <Button className="w-full" onClick={handleEmail} disabled={emailLoading || !email.trim() || emailPassword.length < 6}>
+                {emailLoading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Lock className="h-5 w-5" />}
+                {emailMode === "login" ? "Entrar com email" : "Criar conta"}
+              </Button>
+            </div>
+          </div>
           <Button variant="dark" className="w-full" onClick={() => setAdminOpen((open) => !open)}>
             <Shield className="h-5 w-5" />
             Acesso Admin
@@ -230,12 +284,12 @@ function LoginView({ onClient, onAdmin }: { onClient: () => Promise<void>; onAdm
                 <Lock className="h-4 w-4" />
               </Button>
             </div>
-            {error && (
-              <p className="mt-3 flex items-center gap-2 text-sm font-medium text-danger">
-                <AlertCircle className="h-4 w-4" /> {error}
-              </p>
-            )}
           </div>
+        )}
+        {error && (
+          <p className="mt-4 flex items-center gap-2 text-sm font-medium text-danger">
+            <AlertCircle className="h-4 w-4" /> {error}
+          </p>
         )}
       </Panel>
     </main>
@@ -790,6 +844,15 @@ export default function App() {
     setView("client");
   };
 
+  const handleEmailAuth = async (email: string, password: string, mode: "login" | "signup") => {
+    if (mode === "signup") {
+      await createUserWithEmailAndPassword(auth, email, password);
+    } else {
+      await signInWithEmailAndPassword(auth, email, password);
+    }
+    setView("client");
+  };
+
   const handleLogout = async () => {
     if (auth.currentUser) await signOut(auth);
     setView("login");
@@ -807,7 +870,7 @@ export default function App() {
     );
   };
 
-  if (view === "login") return <LoginView onClient={handleGoogleSignIn} onAdmin={() => setView("admin")} />;
+  if (view === "login") return <LoginView onClient={handleGoogleSignIn} onEmailAuth={handleEmailAuth} onAdmin={() => setView("admin")} />;
   if (view === "client" && user) {
     return (
       <ClientView
@@ -820,7 +883,7 @@ export default function App() {
       />
     );
   }
-  if (view === "client" && !user) return <LoginView onClient={handleGoogleSignIn} onAdmin={() => setView("admin")} />;
+  if (view === "client" && !user) return <LoginView onClient={handleGoogleSignIn} onEmailAuth={handleEmailAuth} onAdmin={() => setView("admin")} />;
   return (
     <AdminView
       services={services}
