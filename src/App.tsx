@@ -949,6 +949,7 @@ export default function App() {
 
   const handleLogout = async () => {
     if (auth.currentUser) await signOut(auth);
+    setUser(null);
     setView("login");
   };
 
