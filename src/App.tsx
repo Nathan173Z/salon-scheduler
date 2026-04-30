@@ -198,13 +198,56 @@ function LoginView({
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
 
+  const describeAuthError = (authError: unknown, mode: "login" | "signup" | "google") => {
+    const code = (authError as { code?: string })?.code ?? "";
+    switch (code) {
+      case "auth/invalid-email":
+        return "Email inválido. Confere o endereço digitado.";
+      case "auth/user-disabled":
+        return "Esta conta foi desativada. Fala com o suporte.";
+      case "auth/user-not-found":
+        return "Este login não existe. Cria uma conta para continuar.";
+      case "auth/wrong-password":
+      case "auth/invalid-credential":
+      case "auth/invalid-login-credentials":
+        return "Login ou senha incorretos. Tenta novamente.";
+      case "auth/missing-password":
+        return "Escreve a tua senha para entrar.";
+      case "auth/too-many-requests":
+        return "Muitas tentativas seguidas. Aguarda alguns minutos e tenta de novo.";
+      case "auth/network-request-failed":
+        return "Sem conexão com a internet. Verifica a tua rede e tenta novamente.";
+      case "auth/email-already-in-use":
+        return "Este email já está cadastrado. Faz login em vez de criar conta.";
+      case "auth/weak-password":
+        return "Senha muito fraca. Usa pelo menos 6 caracteres.";
+      case "auth/popup-closed-by-user":
+        return "Janela do Google fechada antes de concluir o login.";
+      case "auth/popup-blocked":
+        return "O navegador bloqueou a janela do Google. Permite pop-ups e tenta de novo.";
+      case "auth/cancelled-popup-request":
+        return "Login com Google cancelado. Tenta novamente.";
+      case "auth/account-exists-with-different-credential":
+        return "Já existe uma conta com este email usando outro método de login.";
+      case "auth/operation-not-allowed":
+        return mode === "google"
+          ? "Login com Google não está ativo no Firebase."
+          : "Login por email/senha não está ativo no Firebase.";
+      default:
+        if (mode === "google") return "Não foi possível entrar com Google. Tenta novamente.";
+        if (mode === "signup") return "Não foi possível cadastrar. Tenta novamente.";
+        return "Não foi possível entrar. Tenta novamente.";
+    }
+  };
+
   const handleGoogle = async () => {
     setLoading(true);
     setError("");
     try {
       await onClient();
-    } catch {
-      setError("Não foi possível entrar com Google. Verifica se o login está ativo no Firebase.");
+    } catch (authError) {
+      console.error("Erro no login com Google:", authError);
+      setError(describeAuthError(authError, "google"));
     } finally {
       setLoading(false);
     }
