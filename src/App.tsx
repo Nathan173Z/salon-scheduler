@@ -455,11 +455,43 @@ function ClientView({
       setTab("mine");
       setTime("");
       setPhone("");
+      if (user.isAnonymous) {
+        setShowSavePrompt(true);
+      }
     } catch (error) {
       console.error("Erro ao salvar agendamento no Firestore:", error);
       setSaveError("Não foi possível salvar. Verifica se o Firestore está criado e se as regras permitem escrita para usuário logado.");
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleSignupAfterBooking = async () => {
+    setSignupError("");
+    if (!signupEmail.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(signupEmail.trim())) {
+      setSignupError("Escreve um email válido.");
+      return;
+    }
+    if (signupPassword.length < 6) {
+      setSignupError("A senha precisa de pelo menos 6 caracteres.");
+      return;
+    }
+    setSignupLoading(true);
+    try {
+      const oldGuestId = user.uid;
+      const credential = await createUserWithEmailAndPassword(auth, signupEmail.trim(), signupPassword);
+      await onUpgradeGuest(credential.user, oldGuestId);
+      setShowSavePrompt(false);
+      setSignupEmail("");
+      setSignupPassword("");
+    } catch (error: unknown) {
+      const code = (error as { code?: string })?.code ?? "";
+      if (code === "auth/email-already-in-use") setSignupError("Esse email já está cadastrado. Faz login na próxima vez.");
+      else if (code === "auth/invalid-email") setSignupError("Email inválido.");
+      else if (code === "auth/weak-password") setSignupError("Senha muito fraca. Usa pelo menos 6 caracteres.");
+      else setSignupError("Não foi possível criar a conta. Tenta novamente.");
+    } finally {
+      setSignupLoading(false);
     }
   };
 
