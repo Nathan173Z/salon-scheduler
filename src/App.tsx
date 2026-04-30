@@ -964,7 +964,7 @@ export default function App() {
     );
   };
 
-  if (view === "login") return <LoginView onClient={handleGoogleSignIn} onEmailAuth={handleEmailAuth} onAdmin={() => setView("admin")} />;
+  if (view === "login") return <LoginView onClient={handleGoogleSignIn} onEmailAuth={handleEmailAuth} onAdmin={() => setView("admin")} onGuest={handleGuestAccess} />;
   if (view === "client" && user) {
     return (
       <ClientView
