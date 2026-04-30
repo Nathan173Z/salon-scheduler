@@ -1088,6 +1088,7 @@ export default function App() {
         isSlotAvailable={isSlotAvailable}
         onLogout={handleLogout}
         user={user}
+        onUpgradeGuest={handleUpgradeGuest}
       />
     );
   }
