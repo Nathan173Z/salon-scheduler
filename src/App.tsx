@@ -269,11 +269,7 @@ function LoginView({
       await onEmailAuth(email.trim(), emailPassword, emailMode);
     } catch (authError) {
       console.error("Erro no login por email e senha:", authError);
-      setError(
-        emailMode === "login"
-          ? "Não foi possível entrar. Confere o email, a senha e se Email/Senha está ativo no Firebase."
-          : "Não foi possível cadastrar. A senha precisa ter pelo menos 6 caracteres e Email/Senha deve estar ativo no Firebase.",
-      );
+      setError(describeAuthError(authError, emailMode));
     } finally {
       setEmailLoading(false);
     }
