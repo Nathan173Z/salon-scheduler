@@ -921,6 +921,23 @@ export default function App() {
     setView("client");
   };
 
+  const handleGuestAccess = () => {
+    let guestId = localStorage.getItem("bella-guest-id");
+    if (!guestId) {
+      guestId = `guest-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      localStorage.setItem("bella-guest-id", guestId);
+    }
+    const guestUser = {
+      uid: guestId,
+      displayName: "Convidado",
+      email: null,
+      photoURL: null,
+      isAnonymous: true,
+    } as unknown as FirebaseUser;
+    setUser(guestUser);
+    setView("client");
+  };
+
   const handleEmailAuth = async (email: string, password: string, mode: "login" | "signup") => {
     if (mode === "signup") {
       await createUserWithEmailAndPassword(auth, email, password);
