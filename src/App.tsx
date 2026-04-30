@@ -184,10 +184,12 @@ function LoginView({
   onClient,
   onEmailAuth,
   onAdmin,
+  onGuest,
 }: {
   onClient: () => Promise<void>;
   onEmailAuth: (email: string, password: string, mode: "login" | "signup") => Promise<void>;
   onAdmin: () => void;
+  onGuest: () => void;
 }) {
   const [loading, setLoading] = useState(false);
   const [emailLoading, setEmailLoading] = useState(false);
