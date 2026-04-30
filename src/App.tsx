@@ -184,10 +184,12 @@ function LoginView({
   onClient,
   onEmailAuth,
   onAdmin,
+  onGuest,
 }: {
   onClient: () => Promise<void>;
   onEmailAuth: (email: string, password: string, mode: "login" | "signup") => Promise<void>;
   onAdmin: () => void;
+  onGuest: () => void;
 }) {
   const [loading, setLoading] = useState(false);
   const [emailLoading, setEmailLoading] = useState(false);
@@ -287,11 +289,23 @@ function LoginView({
           <p className="mt-3 text-sm leading-6 text-muted-foreground">Escolhe teu serviço, horário e acompanha cada solicitação num ambiente simples e acolhedor.</p>
         </div>
 
-        <div className="mt-8 space-y-3">
+        <div className="mt-8 space-y-4">
+          <Button className="w-full" onClick={onGuest}>
+            <Calendar className="h-5 w-5" />
+            Agendar como Convidado
+          </Button>
+
+          <div className="flex items-center gap-3 text-xs uppercase tracking-widest text-muted-foreground">
+            <span className="h-px flex-1 bg-border" />
+            <span>ou acesse sua conta:</span>
+            <span className="h-px flex-1 bg-border" />
+          </div>
+
           <Button variant="secondary" className="w-full" onClick={handleGoogle} disabled={loading}>
             {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : <GoogleMark />}
             Entrar com Google
           </Button>
+
           <div className="rounded-2xl bg-muted p-4 text-left">
             <div className="mb-3 grid grid-cols-2 gap-2">
               <Button variant={emailMode === "login" ? "primary" : "secondary"} onClick={() => setEmailMode("login")} type="button">
@@ -310,6 +324,7 @@ function LoginView({
               </Button>
             </div>
           </div>
+
           <Button variant="dark" className="w-full" onClick={() => setAdminOpen((open) => !open)}>
             <Shield className="h-5 w-5" />
             Acesso Admin
@@ -906,6 +921,23 @@ export default function App() {
     setView("client");
   };
 
+  const handleGuestAccess = () => {
+    let guestId = localStorage.getItem("bella-guest-id");
+    if (!guestId) {
+      guestId = `guest-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      localStorage.setItem("bella-guest-id", guestId);
+    }
+    const guestUser = {
+      uid: guestId,
+      displayName: "Convidado",
+      email: null,
+      photoURL: null,
+      isAnonymous: true,
+    } as unknown as FirebaseUser;
+    setUser(guestUser);
+    setView("client");
+  };
+
   const handleEmailAuth = async (email: string, password: string, mode: "login" | "signup") => {
     if (mode === "signup") {
       await createUserWithEmailAndPassword(auth, email, password);
@@ -917,6 +949,7 @@ export default function App() {
 
   const handleLogout = async () => {
     if (auth.currentUser) await signOut(auth);
+    setUser(null);
     setView("login");
   };
 
@@ -932,7 +965,7 @@ export default function App() {
     );
   };
 
-  if (view === "login") return <LoginView onClient={handleGoogleSignIn} onEmailAuth={handleEmailAuth} onAdmin={() => setView("admin")} />;
+  if (view === "login") return <LoginView onClient={handleGoogleSignIn} onEmailAuth={handleEmailAuth} onAdmin={() => setView("admin")} onGuest={handleGuestAccess} />;
   if (view === "client" && user) {
     return (
       <ClientView
@@ -945,7 +978,7 @@ export default function App() {
       />
     );
   }
-  if (view === "client" && !user) return <LoginView onClient={handleGoogleSignIn} onEmailAuth={handleEmailAuth} onAdmin={() => setView("admin")} />;
+  if (view === "client" && !user) return <LoginView onClient={handleGoogleSignIn} onEmailAuth={handleEmailAuth} onAdmin={() => setView("admin")} onGuest={handleGuestAccess} />;
   return (
     <AdminView
       services={services}
