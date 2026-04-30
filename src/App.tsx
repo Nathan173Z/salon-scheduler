@@ -289,11 +289,23 @@ function LoginView({
           <p className="mt-3 text-sm leading-6 text-muted-foreground">Escolhe teu serviço, horário e acompanha cada solicitação num ambiente simples e acolhedor.</p>
         </div>
 
-        <div className="mt-8 space-y-3">
+        <div className="mt-8 space-y-4">
+          <Button className="w-full" onClick={onGuest}>
+            <Calendar className="h-5 w-5" />
+            Agendar como Convidado
+          </Button>
+
+          <div className="flex items-center gap-3 text-xs uppercase tracking-widest text-muted-foreground">
+            <span className="h-px flex-1 bg-border" />
+            <span>ou acesse sua conta:</span>
+            <span className="h-px flex-1 bg-border" />
+          </div>
+
           <Button variant="secondary" className="w-full" onClick={handleGoogle} disabled={loading}>
             {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : <GoogleMark />}
             Entrar com Google
           </Button>
+
           <div className="rounded-2xl bg-muted p-4 text-left">
             <div className="mb-3 grid grid-cols-2 gap-2">
               <Button variant={emailMode === "login" ? "primary" : "secondary"} onClick={() => setEmailMode("login")} type="button">
@@ -312,6 +324,7 @@ function LoginView({
               </Button>
             </div>
           </div>
+
           <Button variant="dark" className="w-full" onClick={() => setAdminOpen((open) => !open)}>
             <Shield className="h-5 w-5" />
             Acesso Admin
