@@ -7,7 +7,7 @@ import {
   signOut,
   type User as FirebaseUser,
 } from "firebase/auth";
-import { Timestamp, addDoc, collection, deleteDoc, doc, onSnapshot, serverTimestamp, setDoc, updateDoc } from "firebase/firestore";
+import { Timestamp, addDoc, collection, deleteDoc, doc, getDocs, onSnapshot, query, serverTimestamp, setDoc, updateDoc, where } from "firebase/firestore";
 import {
   AlertCircle,
   Ban,
@@ -359,6 +359,7 @@ function ClientView({
   isSlotAvailable,
   onLogout,
   user,
+  onUpgradeGuest,
 }: {
   services: Service[];
   appointments: Appointment[];
@@ -366,16 +367,22 @@ function ClientView({
   isSlotAvailable: (date: string, time: string) => boolean;
   onLogout: () => void;
   user: FirebaseUser;
+  onUpgradeGuest: (newUser: FirebaseUser, oldGuestId: string) => Promise<void>;
 }) {
   const [tab, setTab] = useState<ClientTab>("new");
   const [serviceId, setServiceId] = useState<string | null>(services[0]?.id ?? null);
   const [date, setDate] = useState(todayISO());
   const [time, setTime] = useState("");
-  const [clientName, setClientName] = useState(user.displayName ?? "");
+  const [clientName, setClientName] = useState(user.displayName && user.displayName !== "Convidado" ? user.displayName : "");
   const [saving, setSaving] = useState(false);
   const [saveMessage, setSaveMessage] = useState("");
   const [saveError, setSaveError] = useState("");
   const [phone, setPhone] = useState("");
+  const [showSavePrompt, setShowSavePrompt] = useState(false);
+  const [signupEmail, setSignupEmail] = useState("");
+  const [signupPassword, setSignupPassword] = useState("");
+  const [signupError, setSignupError] = useState("");
+  const [signupLoading, setSignupLoading] = useState(false);
   const selectedService = services.find((service) => service.id === serviceId) ?? null;
   const slots = useMemo(generateTimeSlots, []);
   const cleanPhone = phone.replace(/\D/g, "");
@@ -448,11 +455,43 @@ function ClientView({
       setTab("mine");
       setTime("");
       setPhone("");
+      if (user.isAnonymous) {
+        setShowSavePrompt(true);
+      }
     } catch (error) {
       console.error("Erro ao salvar agendamento no Firestore:", error);
       setSaveError("Não foi possível salvar. Verifica se o Firestore está criado e se as regras permitem escrita para usuário logado.");
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleSignupAfterBooking = async () => {
+    setSignupError("");
+    if (!signupEmail.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(signupEmail.trim())) {
+      setSignupError("Escreve um email válido.");
+      return;
+    }
+    if (signupPassword.length < 6) {
+      setSignupError("A senha precisa de pelo menos 6 caracteres.");
+      return;
+    }
+    setSignupLoading(true);
+    try {
+      const oldGuestId = user.uid;
+      const credential = await createUserWithEmailAndPassword(auth, signupEmail.trim(), signupPassword);
+      await onUpgradeGuest(credential.user, oldGuestId);
+      setShowSavePrompt(false);
+      setSignupEmail("");
+      setSignupPassword("");
+    } catch (error: unknown) {
+      const code = (error as { code?: string })?.code ?? "";
+      if (code === "auth/email-already-in-use") setSignupError("Esse email já está cadastrado. Faz login na próxima vez.");
+      else if (code === "auth/invalid-email") setSignupError("Email inválido.");
+      else if (code === "auth/weak-password") setSignupError("Senha muito fraca. Usa pelo menos 6 caracteres.");
+      else setSignupError("Não foi possível criar a conta. Tenta novamente.");
+    } finally {
+      setSignupLoading(false);
     }
   };
 
@@ -586,6 +625,66 @@ function ClientView({
           </div>
         )}
       </div>
+
+      {showSavePrompt && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4" role="dialog" aria-modal="true">
+          <div className="w-full max-w-md rounded-3xl bg-card p-6 shadow-float">
+            <div className="mb-4 flex items-start gap-3">
+              <div className="grid h-11 w-11 place-items-center rounded-2xl bg-rose-soft text-primary">
+                <Lock className="h-5 w-5" />
+              </div>
+              <div className="flex-1">
+                <h3 className="text-lg font-bold text-foreground">Quer salvar seus dados?</h3>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Quer salvar seus dados para o seu próximo agendamento ser mais rápido? Crie uma senha de acesso.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowSavePrompt(false)}
+                className="rounded-full p-1 text-muted-foreground hover:bg-muted"
+                aria-label="Fechar"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="space-y-3">
+              <input
+                className={inputClass}
+                type="email"
+                placeholder="Email"
+                value={signupEmail}
+                onChange={(e) => setSignupEmail(e.target.value)}
+                autoComplete="email"
+              />
+              <input
+                className={inputClass}
+                type="password"
+                placeholder="Senha (mín. 6 caracteres)"
+                value={signupPassword}
+                onChange={(e) => setSignupPassword(e.target.value)}
+                autoComplete="new-password"
+              />
+              {signupError && (
+                <p className="flex items-center gap-2 text-sm font-medium text-danger">
+                  <AlertCircle className="h-4 w-4" /> {signupError}
+                </p>
+              )}
+              <Button className="w-full" onClick={handleSignupAfterBooking} disabled={signupLoading}>
+                {signupLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Lock className="h-4 w-4" />}
+                Criar conta
+              </Button>
+              <button
+                type="button"
+                onClick={() => setShowSavePrompt(false)}
+                className="w-full text-sm font-medium text-muted-foreground hover:text-foreground"
+              >
+                Agora não, obrigada
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }
@@ -953,6 +1052,20 @@ export default function App() {
     setView("login");
   };
 
+  const handleUpgradeGuest = async (newUser: FirebaseUser, oldGuestId: string) => {
+    try {
+      const q = query(collection(db, "Agendamento"), where("clienteId", "==", oldGuestId));
+      const snap = await getDocs(q);
+      await Promise.all(
+        snap.docs.map((d) => updateDoc(doc(db, "Agendamento", d.id), { clienteId: newUser.uid })),
+      );
+    } catch (error) {
+      console.error("Erro ao migrar agendamentos do convidado:", error);
+    }
+    localStorage.removeItem("bella-guest-id");
+    setUser(newUser);
+  };
+
   const isSlotAvailable = (date: string, time: string) => {
     if (!date || !time) return false;
     if (blockedSlots.includes(date)) return false;
@@ -975,6 +1088,7 @@ export default function App() {
         isSlotAvailable={isSlotAvailable}
         onLogout={handleLogout}
         user={user}
+        onUpgradeGuest={handleUpgradeGuest}
       />
     );
   }
