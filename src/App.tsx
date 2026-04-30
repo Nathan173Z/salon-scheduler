@@ -1052,6 +1052,20 @@ export default function App() {
     setView("login");
   };
 
+  const handleUpgradeGuest = async (newUser: FirebaseUser, oldGuestId: string) => {
+    try {
+      const q = query(collection(db, "Agendamento"), where("clienteId", "==", oldGuestId));
+      const snap = await getDocs(q);
+      await Promise.all(
+        snap.docs.map((d) => updateDoc(doc(db, "Agendamento", d.id), { clienteId: newUser.uid })),
+      );
+    } catch (error) {
+      console.error("Erro ao migrar agendamentos do convidado:", error);
+    }
+    localStorage.removeItem("bella-guest-id");
+    setUser(newUser);
+  };
+
   const isSlotAvailable = (date: string, time: string) => {
     if (!date || !time) return false;
     if (blockedSlots.includes(date)) return false;
