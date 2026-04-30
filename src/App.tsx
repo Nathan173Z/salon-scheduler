@@ -359,6 +359,7 @@ function ClientView({
   isSlotAvailable,
   onLogout,
   user,
+  onUpgradeGuest,
 }: {
   services: Service[];
   appointments: Appointment[];
@@ -366,16 +367,22 @@ function ClientView({
   isSlotAvailable: (date: string, time: string) => boolean;
   onLogout: () => void;
   user: FirebaseUser;
+  onUpgradeGuest: (newUser: FirebaseUser, oldGuestId: string) => Promise<void>;
 }) {
   const [tab, setTab] = useState<ClientTab>("new");
   const [serviceId, setServiceId] = useState<string | null>(services[0]?.id ?? null);
   const [date, setDate] = useState(todayISO());
   const [time, setTime] = useState("");
-  const [clientName, setClientName] = useState(user.displayName ?? "");
+  const [clientName, setClientName] = useState(user.displayName && user.displayName !== "Convidado" ? user.displayName : "");
   const [saving, setSaving] = useState(false);
   const [saveMessage, setSaveMessage] = useState("");
   const [saveError, setSaveError] = useState("");
   const [phone, setPhone] = useState("");
+  const [showSavePrompt, setShowSavePrompt] = useState(false);
+  const [signupEmail, setSignupEmail] = useState("");
+  const [signupPassword, setSignupPassword] = useState("");
+  const [signupError, setSignupError] = useState("");
+  const [signupLoading, setSignupLoading] = useState(false);
   const selectedService = services.find((service) => service.id === serviceId) ?? null;
   const slots = useMemo(generateTimeSlots, []);
   const cleanPhone = phone.replace(/\D/g, "");
