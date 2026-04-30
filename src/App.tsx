@@ -625,6 +625,66 @@ function ClientView({
           </div>
         )}
       </div>
+
+      {showSavePrompt && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4" role="dialog" aria-modal="true">
+          <div className="w-full max-w-md rounded-3xl bg-card p-6 shadow-float">
+            <div className="mb-4 flex items-start gap-3">
+              <div className="grid h-11 w-11 place-items-center rounded-2xl bg-rose-soft text-primary">
+                <Lock className="h-5 w-5" />
+              </div>
+              <div className="flex-1">
+                <h3 className="text-lg font-bold text-foreground">Quer salvar seus dados?</h3>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Quer salvar seus dados para o seu próximo agendamento ser mais rápido? Crie uma senha de acesso.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowSavePrompt(false)}
+                className="rounded-full p-1 text-muted-foreground hover:bg-muted"
+                aria-label="Fechar"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="space-y-3">
+              <input
+                className={inputClass}
+                type="email"
+                placeholder="Email"
+                value={signupEmail}
+                onChange={(e) => setSignupEmail(e.target.value)}
+                autoComplete="email"
+              />
+              <input
+                className={inputClass}
+                type="password"
+                placeholder="Senha (mín. 6 caracteres)"
+                value={signupPassword}
+                onChange={(e) => setSignupPassword(e.target.value)}
+                autoComplete="new-password"
+              />
+              {signupError && (
+                <p className="flex items-center gap-2 text-sm font-medium text-danger">
+                  <AlertCircle className="h-4 w-4" /> {signupError}
+                </p>
+              )}
+              <Button className="w-full" onClick={handleSignupAfterBooking} disabled={signupLoading}>
+                {signupLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Lock className="h-4 w-4" />}
+                Criar conta
+              </Button>
+              <button
+                type="button"
+                onClick={() => setShowSavePrompt(false)}
+                className="w-full text-sm font-medium text-muted-foreground hover:text-foreground"
+              >
+                Agora não, obrigada
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }
