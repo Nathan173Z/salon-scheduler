@@ -408,10 +408,6 @@ function ClientView({
   }, [user, clientName]);
 
   const schedule = async () => {
-    if (!user.uid) {
-      setSaveError("Entra com Google antes de salvar o agendamento.");
-      return;
-    }
     if (!clientName.trim()) {
       setSaveError("Escreve teu nome para solicitar o agendamento.");
       return;
@@ -424,6 +420,27 @@ function ClientView({
     setSaving(true);
     setSaveMessage("");
     setSaveError("");
+
+    // Garante que existe um usuário autenticado antes de salvar.
+    let activeUser = user;
+    if (!activeUser || activeUser.isAnonymous) {
+      try {
+        activeUser = await onRequireGoogleSignIn();
+      } catch (authError) {
+        console.error("Erro ao autenticar com Google:", authError);
+        const code = (authError as { code?: string })?.code ?? "";
+        if (code === "auth/popup-closed-by-user" || code === "auth/cancelled-popup-request") {
+          setSaveError("Login com Google cancelado. Tenta novamente para confirmar o agendamento.");
+        } else if (code === "auth/popup-blocked") {
+          setSaveError("O navegador bloqueou o popup do Google. Permite pop-ups e tenta novamente.");
+        } else {
+          setSaveError("Não foi possível entrar com Google. Tenta novamente.");
+        }
+        setSaving(false);
+        return;
+      }
+    }
+
     const scheduledAt = new Date(`${date}T${time}:00`);
     const serviceFromForm: Service = {
       id: selectedService?.id ?? "manual-service",
@@ -434,7 +451,7 @@ function ClientView({
     };
     const newAppointment: Appointment = {
       id: Date.now(),
-      clientId: user.uid,
+      clientId: activeUser.uid,
       clientName: clientName.trim(),
       phone: cleanPhone,
       service: serviceFromForm,
@@ -449,8 +466,9 @@ function ClientView({
         price: selectedService?.price ?? 0,
         duracao: selectedService?.duration ?? 0,
         descricao: selectedService?.description ?? "",
-        clienteId: user.uid,
-        clientName: clientName.trim() || user.displayName || "Cliente",
+        clienteId: activeUser.uid,
+        clientName: clientName.trim() || activeUser.displayName || "Cliente",
+        clientEmail: activeUser.email ?? null,
         phone: cleanPhone,
         serviceId: selectedService?.id ?? null,
         status: "pending",
@@ -462,7 +480,7 @@ function ClientView({
       setTab("mine");
       setTime("");
       setPhone("");
-      if (user.isAnonymous) {
+      if (activeUser.isAnonymous) {
         setShowSavePrompt(true);
       }
     } catch (error) {
