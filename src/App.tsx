@@ -186,7 +186,7 @@ function LoginView({
   onAdmin,
   onGuest,
 }: {
-  onClient: () => Promise<void>;
+  onClient: () => Promise<unknown>;
   onEmailAuth: (email: string, password: string, mode: "login" | "signup") => Promise<void>;
   onAdmin: () => void;
   onGuest: () => void;
@@ -360,20 +360,22 @@ function ClientView({
   onLogout,
   user,
   onUpgradeGuest,
+  onRequireGoogleSignIn,
 }: {
   services: Service[];
   appointments: Appointment[];
   setAppointments: React.Dispatch<React.SetStateAction<Appointment[]>>;
   isSlotAvailable: (date: string, time: string) => boolean;
   onLogout: () => void;
-  user: FirebaseUser;
+  user: FirebaseUser | null;
   onUpgradeGuest: (newUser: FirebaseUser, oldGuestId: string) => Promise<void>;
+  onRequireGoogleSignIn: () => Promise<FirebaseUser>;
 }) {
   const [tab, setTab] = useState<ClientTab>("new");
   const [serviceId, setServiceId] = useState<string | null>(services[0]?.id ?? null);
   const [date, setDate] = useState(todayISO());
   const [time, setTime] = useState("");
-  const [clientName, setClientName] = useState(user.displayName && user.displayName !== "Convidado" ? user.displayName : "");
+  const [clientName, setClientName] = useState(user?.displayName && user.displayName !== "Convidado" ? user.displayName : "");
   const [saving, setSaving] = useState(false);
   const [saveMessage, setSaveMessage] = useState("");
   const [saveError, setSaveError] = useState("");
@@ -387,24 +389,25 @@ function ClientView({
   const slots = useMemo(generateTimeSlots, []);
   const cleanPhone = phone.replace(/\D/g, "");
   const canSubmit = Boolean(
-    user.uid &&
     selectedService &&
     date &&
     time &&
     clientName.trim() &&
     cleanPhone.length >= 10,
   );
-  const clientAppointments = appointments.filter((appointment) => appointment.clientId === user.uid);
+  const clientAppointments = user ? appointments.filter((appointment) => appointment.clientId === user.uid) : [];
 
   useEffect(() => {
     if (!serviceId && services[0]) setServiceId(services[0].id);
   }, [serviceId, services]);
 
-  const schedule = async () => {
-    if (!user.uid) {
-      setSaveError("Entra com Google antes de salvar o agendamento.");
-      return;
+  useEffect(() => {
+    if (user?.displayName && user.displayName !== "Convidado" && !clientName) {
+      setClientName(user.displayName);
     }
+  }, [user, clientName]);
+
+  const schedule = async () => {
     if (!clientName.trim()) {
       setSaveError("Escreve teu nome para solicitar o agendamento.");
       return;
@@ -417,6 +420,27 @@ function ClientView({
     setSaving(true);
     setSaveMessage("");
     setSaveError("");
+
+    // Garante que existe um usuário autenticado antes de salvar.
+    let activeUser = user;
+    if (!activeUser || activeUser.isAnonymous) {
+      try {
+        activeUser = await onRequireGoogleSignIn();
+      } catch (authError) {
+        console.error("Erro ao autenticar com Google:", authError);
+        const code = (authError as { code?: string })?.code ?? "";
+        if (code === "auth/popup-closed-by-user" || code === "auth/cancelled-popup-request") {
+          setSaveError("Login com Google cancelado. Tenta novamente para confirmar o agendamento.");
+        } else if (code === "auth/popup-blocked") {
+          setSaveError("O navegador bloqueou o popup do Google. Permite pop-ups e tenta novamente.");
+        } else {
+          setSaveError("Não foi possível entrar com Google. Tenta novamente.");
+        }
+        setSaving(false);
+        return;
+      }
+    }
+
     const scheduledAt = new Date(`${date}T${time}:00`);
     const serviceFromForm: Service = {
       id: selectedService?.id ?? "manual-service",
@@ -427,7 +451,7 @@ function ClientView({
     };
     const newAppointment: Appointment = {
       id: Date.now(),
-      clientId: user.uid,
+      clientId: activeUser.uid,
       clientName: clientName.trim(),
       phone: cleanPhone,
       service: serviceFromForm,
@@ -442,8 +466,9 @@ function ClientView({
         price: selectedService?.price ?? 0,
         duracao: selectedService?.duration ?? 0,
         descricao: selectedService?.description ?? "",
-        clienteId: user.uid,
-        clientName: clientName.trim() || user.displayName || "Cliente",
+        clienteId: activeUser.uid,
+        clientName: clientName.trim() || activeUser.displayName || "Cliente",
+        clientEmail: activeUser.email ?? null,
         phone: cleanPhone,
         serviceId: selectedService?.id ?? null,
         status: "pending",
@@ -455,7 +480,7 @@ function ClientView({
       setTab("mine");
       setTime("");
       setPhone("");
-      if (user.isAnonymous) {
+      if (activeUser.isAnonymous) {
         setShowSavePrompt(true);
       }
     } catch (error) {
@@ -478,7 +503,7 @@ function ClientView({
     }
     setSignupLoading(true);
     try {
-      const oldGuestId = user.uid;
+      const oldGuestId = user?.uid ?? "";
       const credential = await createUserWithEmailAndPassword(auth, signupEmail.trim(), signupPassword);
       await onUpgradeGuest(credential.user, oldGuestId);
       setShowSavePrompt(false);
@@ -500,7 +525,7 @@ function ClientView({
       <header className="border-b border-border bg-card/80 backdrop-blur-xl">
         <div className="mx-auto flex max-w-7xl flex-col gap-4 px-4 py-5 sm:flex-row sm:items-center sm:justify-between lg:px-8">
           <div className="flex items-center gap-3">
-            {user.photoURL ? (
+            {user?.photoURL ? (
               <img src={user.photoURL} alt={user.displayName ?? "Foto do usuário"} className="h-12 w-12 rounded-2xl object-cover" />
             ) : (
               <div className="grid h-12 w-12 place-items-center rounded-2xl bg-rose-soft text-primary">
@@ -508,14 +533,16 @@ function ClientView({
               </div>
             )}
             <div>
-              <p className="text-sm text-muted-foreground">Olá, {user.displayName ?? "cliente"}</p>
+              <p className="text-sm text-muted-foreground">Olá, {user?.displayName ?? "visitante"}</p>
               <h1 className="text-2xl font-extrabold text-foreground">Teu salão de unhas</h1>
             </div>
           </div>
           <div className="flex gap-2">
             <Button variant={tab === "new" ? "primary" : "secondary"} onClick={() => setTab("new")}>Novo agendamento</Button>
             <Button variant={tab === "mine" ? "primary" : "secondary"} onClick={() => setTab("mine")}>Meus agendamentos</Button>
-            <Button variant="ghost" onClick={onLogout}>Sair</Button>
+            {user && !user.isAnonymous ? (
+              <Button variant="ghost" onClick={onLogout}>Sair</Button>
+            ) : null}
           </div>
         </div>
       </header>
@@ -952,7 +979,7 @@ function AdminView({
 }
 
 export default function App() {
-  const [view, setView] = useState<View>("login");
+  const [view, setView] = useState<View>("client");
   const [user, setUser] = useState<FirebaseUser | null>(null);
   const [services, setServices] = useState<Service[]>([]);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
@@ -1016,8 +1043,17 @@ export default function App() {
   }, []);
 
   const handleGoogleSignIn = async () => {
-    await signInWithPopup(auth, googleProvider);
+    const credential = await signInWithPopup(auth, googleProvider);
+    setUser(credential.user);
     setView("client");
+    return credential.user;
+  };
+
+  const requireGoogleSignIn = async () => {
+    if (auth.currentUser && !auth.currentUser.isAnonymous) return auth.currentUser;
+    const credential = await signInWithPopup(auth, googleProvider);
+    setUser(credential.user);
+    return credential.user;
   };
 
   const handleGuestAccess = () => {
@@ -1049,16 +1085,18 @@ export default function App() {
   const handleLogout = async () => {
     if (auth.currentUser) await signOut(auth);
     setUser(null);
-    setView("login");
+    setView("client");
   };
 
   const handleUpgradeGuest = async (newUser: FirebaseUser, oldGuestId: string) => {
     try {
-      const q = query(collection(db, "Agendamento"), where("clienteId", "==", oldGuestId));
-      const snap = await getDocs(q);
-      await Promise.all(
-        snap.docs.map((d) => updateDoc(doc(db, "Agendamento", d.id), { clienteId: newUser.uid })),
-      );
+      if (oldGuestId) {
+        const q = query(collection(db, "Agendamento"), where("clienteId", "==", oldGuestId));
+        const snap = await getDocs(q);
+        await Promise.all(
+          snap.docs.map((d) => updateDoc(doc(db, "Agendamento", d.id), { clienteId: newUser.uid })),
+        );
+      }
     } catch (error) {
       console.error("Erro ao migrar agendamentos do convidado:", error);
     }
@@ -1079,29 +1117,29 @@ export default function App() {
   };
 
   if (view === "login") return <LoginView onClient={handleGoogleSignIn} onEmailAuth={handleEmailAuth} onAdmin={() => setView("admin")} onGuest={handleGuestAccess} />;
-  if (view === "client" && user) {
+  if (view === "admin") {
     return (
-      <ClientView
+      <AdminView
         services={services}
+        setServices={setServices}
         appointments={appointments}
         setAppointments={setAppointments}
-        isSlotAvailable={isSlotAvailable}
+        blockedSlots={blockedSlots}
+        setBlockedSlots={setBlockedSlots}
         onLogout={handleLogout}
-        user={user}
-        onUpgradeGuest={handleUpgradeGuest}
       />
     );
   }
-  if (view === "client" && !user) return <LoginView onClient={handleGoogleSignIn} onEmailAuth={handleEmailAuth} onAdmin={() => setView("admin")} onGuest={handleGuestAccess} />;
   return (
-    <AdminView
+    <ClientView
       services={services}
-      setServices={setServices}
       appointments={appointments}
       setAppointments={setAppointments}
-      blockedSlots={blockedSlots}
-      setBlockedSlots={setBlockedSlots}
+      isSlotAvailable={isSlotAvailable}
       onLogout={handleLogout}
+      user={user}
+      onUpgradeGuest={handleUpgradeGuest}
+      onRequireGoogleSignIn={requireGoogleSignIn}
     />
   );
 }
