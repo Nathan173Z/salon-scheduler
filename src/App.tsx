@@ -433,6 +433,8 @@ function ClientView({
           setSaveError("Login com Google cancelado. Tenta novamente para confirmar o agendamento.");
         } else if (code === "auth/popup-blocked") {
           setSaveError("O navegador bloqueou o popup do Google. Permite pop-ups e tenta novamente.");
+        } else if (code === "auth/unauthorized-domain") {
+          setSaveError("Este domínio não está autorizado no Firebase. Adiciona o domínio atual em Firebase Console → Authentication → Settings → Authorized domains.");
         } else {
           setSaveError("Não foi possível entrar com Google. Tenta novamente.");
         }
