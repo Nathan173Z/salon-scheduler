@@ -1043,8 +1043,17 @@ export default function App() {
   }, []);
 
   const handleGoogleSignIn = async () => {
-    await signInWithPopup(auth, googleProvider);
+    const credential = await signInWithPopup(auth, googleProvider);
+    setUser(credential.user);
     setView("client");
+    return credential.user;
+  };
+
+  const requireGoogleSignIn = async () => {
+    if (auth.currentUser && !auth.currentUser.isAnonymous) return auth.currentUser;
+    const credential = await signInWithPopup(auth, googleProvider);
+    setUser(credential.user);
+    return credential.user;
   };
 
   const handleGuestAccess = () => {
@@ -1076,16 +1085,18 @@ export default function App() {
   const handleLogout = async () => {
     if (auth.currentUser) await signOut(auth);
     setUser(null);
-    setView("login");
+    setView("client");
   };
 
   const handleUpgradeGuest = async (newUser: FirebaseUser, oldGuestId: string) => {
     try {
-      const q = query(collection(db, "Agendamento"), where("clienteId", "==", oldGuestId));
-      const snap = await getDocs(q);
-      await Promise.all(
-        snap.docs.map((d) => updateDoc(doc(db, "Agendamento", d.id), { clienteId: newUser.uid })),
-      );
+      if (oldGuestId) {
+        const q = query(collection(db, "Agendamento"), where("clienteId", "==", oldGuestId));
+        const snap = await getDocs(q);
+        await Promise.all(
+          snap.docs.map((d) => updateDoc(doc(db, "Agendamento", d.id), { clienteId: newUser.uid })),
+        );
+      }
     } catch (error) {
       console.error("Erro ao migrar agendamentos do convidado:", error);
     }
@@ -1106,29 +1117,29 @@ export default function App() {
   };
 
   if (view === "login") return <LoginView onClient={handleGoogleSignIn} onEmailAuth={handleEmailAuth} onAdmin={() => setView("admin")} onGuest={handleGuestAccess} />;
-  if (view === "client" && user) {
+  if (view === "admin") {
     return (
-      <ClientView
+      <AdminView
         services={services}
+        setServices={setServices}
         appointments={appointments}
         setAppointments={setAppointments}
-        isSlotAvailable={isSlotAvailable}
+        blockedSlots={blockedSlots}
+        setBlockedSlots={setBlockedSlots}
         onLogout={handleLogout}
-        user={user}
-        onUpgradeGuest={handleUpgradeGuest}
       />
     );
   }
-  if (view === "client" && !user) return <LoginView onClient={handleGoogleSignIn} onEmailAuth={handleEmailAuth} onAdmin={() => setView("admin")} onGuest={handleGuestAccess} />;
   return (
-    <AdminView
+    <ClientView
       services={services}
-      setServices={setServices}
       appointments={appointments}
       setAppointments={setAppointments}
-      blockedSlots={blockedSlots}
-      setBlockedSlots={setBlockedSlots}
+      isSlotAvailable={isSlotAvailable}
       onLogout={handleLogout}
+      user={user}
+      onUpgradeGuest={handleUpgradeGuest}
+      onRequireGoogleSignIn={requireGoogleSignIn}
     />
   );
 }
