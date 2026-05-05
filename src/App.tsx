@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Loader2 } from "lucide-react";
 import {
   createUserWithEmailAndPassword,
   onAuthStateChanged,
@@ -18,7 +19,7 @@ import type { Appointment, AppointmentStatus, BookingProfile, Service, View } fr
 import { parseFirebaseDate, todayISO, toLocalISODate } from "@/features/salon/utils";
 
 export default function App() {
-  const [view, setView] = useState<View>("client");
+  const [view, setView] = useState<View>("login");
   const [user, setUser] = useState<FirebaseUser | null>(null);
   const [services, setServices] = useState<Service[]>([]);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
@@ -157,7 +158,14 @@ export default function App() {
   const handleLogout = async () => {
     if (auth.currentUser) await signOut(auth);
     setUser(null);
-    setView("client");
+    setView("login");
+  };
+
+  const handleOpenLoginScreen = () => {
+    void (async () => {
+      if (auth.currentUser) await signOut(auth);
+      setView("login");
+    })();
   };
 
   const handleUpgradeGuest = async (newUser: FirebaseUser, oldAnonymousUid: string) => {
@@ -194,11 +202,11 @@ export default function App() {
         onEmailAuth={handleEmailAuth}
         onAdmin={() => setView("admin")}
         onGuest={handleGuestAccess}
-        onBackToBooking={() => setView("client")}
+        onBackToBooking={user ? () => setView("client") : undefined}
       />
     );
   }
-  if (view === "client") {
+  if (view === "client" && user) {
     return (
       <ClientView
         services={services}
@@ -209,8 +217,15 @@ export default function App() {
         user={user}
         onUpgradeGuest={handleUpgradeGuest}
         bookingProfile={bookingProfile}
-        onOpenLogin={() => setView("login")}
+        onOpenLogin={handleOpenLoginScreen}
       />
+    );
+  }
+  if (view === "client" && !user) {
+    return (
+      <main className="grid min-h-screen place-items-center bg-background px-4">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" aria-label="A carregar" />
+      </main>
     );
   }
   return (

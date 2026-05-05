@@ -21,7 +21,7 @@ type LoginViewProps = {
   onBackToBooking?: () => void;
 };
 
-const describeAuthError = (authError: unknown, mode: "login" | "signup" | "google") => {
+export const describeAuthError = (authError: unknown, mode: "login" | "signup" | "google") => {
   const code = (authError as { code?: string })?.code ?? "";
   switch (code) {
     case "auth/invalid-email":

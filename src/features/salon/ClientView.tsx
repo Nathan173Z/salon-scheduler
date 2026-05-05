@@ -1,5 +1,11 @@
 import { useEffect, useMemo, useState, type Dispatch, type SetStateAction } from "react";
-import { createUserWithEmailAndPassword, signInWithPopup, updateProfile } from "firebase/auth";
+import {
+  createUserWithEmailAndPassword,
+  linkWithPopup,
+  signInWithPopup,
+  updateProfile,
+  type User,
+} from "firebase/auth";
 import { Timestamp, addDoc, collection, doc, serverTimestamp, setDoc } from "firebase/firestore";
 import {
   AlertCircle,
@@ -7,15 +13,15 @@ import {
   ChevronRight,
   Clock,
   Loader2,
-  Lock,
   Sparkles,
   User,
   X,
 } from "lucide-react";
 import { auth, db, googleProvider } from "@/firebase";
+import { describeAuthError } from "./LoginView";
 import type { Appointment, BookingProfile, ClientTab, FirebaseUser, Service } from "./types";
 import { formatBRL, generateTimeSlots, todayISO } from "./utils";
-import { Badge, Button, inputClass, Panel } from "./salon-ui";
+import { Badge, Button, GoogleMark, inputClass, Panel } from "./salon-ui";
 
 type ClientViewProps = {
   services: Service[];
@@ -23,11 +29,10 @@ type ClientViewProps = {
   setAppointments: Dispatch<SetStateAction<Appointment[]>>;
   isSlotAvailable: (date: string, time: string) => boolean;
   onLogout: () => void;
-  /** Sessão Firebase (null = a navegar serviços/horários sem login). */
-  user: FirebaseUser | null;
+  user: FirebaseUser;
   onUpgradeGuest: (newUser: FirebaseUser, oldGuestId: string) => Promise<void>;
-  /** Null quando não há sessão ou ainda sem dados em `PerfisCliente`. */
   bookingProfile: BookingProfile | null;
+  /** Volta ao ecrã inicial (login / cadastro / convidado). */
   onOpenLogin: () => void;
 };
 
@@ -51,28 +56,24 @@ export function ClientView({
   const [saveMessage, setSaveMessage] = useState("");
   const [saveError, setSaveError] = useState("");
   const [phone, setPhone] = useState("");
-  const [showSavePrompt, setShowSavePrompt] = useState(false);
-  const [signupEmail, setSignupEmail] = useState("");
-  const [signupPassword, setSignupPassword] = useState("");
-  const [signupError, setSignupError] = useState("");
-  const [signupLoading, setSignupLoading] = useState(false);
+  const [showAuthChoiceModal, setShowAuthChoiceModal] = useState(false);
+  const [authModalError, setAuthModalError] = useState("");
+  const [authModalLoading, setAuthModalLoading] = useState(false);
+  const [modalName, setModalName] = useState("");
+  const [modalEmail, setModalEmail] = useState("");
+  const [modalPassword, setModalPassword] = useState("");
   const selectedService = services.find((service) => service.id === serviceId) ?? null;
   const slots = useMemo(generateTimeSlots, []);
   const cleanPhone = phone.replace(/\D/g, "");
   const selectionReady = Boolean(selectedService && date && time);
   const canConfirm = selectionReady && cleanPhone.length >= 10;
-  const clientAppointments = user ? appointments.filter((appointment) => appointment.clientId === user.uid) : [];
+  const clientAppointments = appointments.filter((appointment) => appointment.clientId === user.uid);
 
   useEffect(() => {
     if (!serviceId && services[0]) setServiceId(services[0].id);
   }, [serviceId, services]);
 
   useEffect(() => {
-    if (!user) {
-      setClientName("");
-      setPhone("");
-      return;
-    }
     if (bookingProfile === null) {
       const fallbackName = user.displayName?.trim() ? user.displayName : "";
       if (fallbackName) setClientName(fallbackName);
@@ -80,13 +81,105 @@ export function ClientView({
     }
     setClientName(bookingProfile.name);
     setPhone(bookingProfile.phone);
-  }, [user?.uid, bookingProfile?.name, bookingProfile?.phone, user?.displayName]);
+  }, [user.uid, bookingProfile?.name, bookingProfile?.phone, user.displayName]);
 
-  /**
-   * Confirma o agendamento: sem sessão Firebase abre o Google Sign-In; em seguida grava na coleção `agendamentos`
-   * (e espelha em `Agendamento` para o painel existente). Um único clique — após o login o salvamento continua no mesmo fluxo.
-   */
-  const handleConfirmar = async () => {
+  const persistBooking = async (currentUser: User) => {
+    if (currentUser.isAnonymous) {
+      throw new Error("anonymous-not-allowed");
+    }
+    if (!selectedService) return;
+
+    const displayNameFromAuth = currentUser.displayName?.trim() ?? null;
+    const emailFromAuth = currentUser.email;
+    const resolvedName = (displayNameFromAuth || clientName.trim() || "Cliente").trim();
+    if (!resolvedName || resolvedName === "Cliente") {
+      throw new Error("missing-name");
+    }
+
+    const scheduledAt = new Date(`${date}T${time}:00`);
+    const serviceFromForm: Service = {
+      id: selectedService.id,
+      name: selectedService.name,
+      price: selectedService.price,
+      duration: selectedService.duration,
+      description: selectedService.description,
+    };
+
+    await addDoc(collection(db, "agendamentos"), {
+      userId: currentUser.uid,
+      userDisplayName: resolvedName,
+      userEmail: emailFromAuth ?? null,
+      serviceId: selectedService.id,
+      serviceName: selectedService.name,
+      servicePrice: selectedService.price,
+      serviceDuration: selectedService.duration,
+      serviceDescription: selectedService.description,
+      date,
+      time,
+      phone: cleanPhone,
+      status: "pending",
+      data_agendada: Timestamp.fromDate(scheduledAt),
+      createdAt: serverTimestamp(),
+    });
+
+    const agRef = await addDoc(collection(db, "Agendamento"), {
+      name: selectedService.name,
+      price: selectedService.price,
+      duracao: selectedService.duration,
+      descricao: selectedService.description,
+      clienteId: currentUser.uid,
+      clientName: resolvedName,
+      phone: cleanPhone,
+      serviceId: selectedService.id,
+      status: "pending",
+      data_agendada: Timestamp.fromDate(scheduledAt),
+      dataCriacao: serverTimestamp(),
+    });
+
+    const newAppointment: Appointment = {
+      id: agRef.id,
+      clientId: currentUser.uid,
+      clientName: resolvedName,
+      phone: cleanPhone,
+      service: serviceFromForm,
+      date,
+      time,
+      status: "pending",
+      createdAt: new Date().toISOString(),
+    };
+    setAppointments((current) => [newAppointment, ...current]);
+
+    setSaveMessage("Agendamento confirmado e guardado.");
+    setTab("mine");
+    setTime("");
+    setShowAuthChoiceModal(false);
+    setAuthModalError("");
+    setModalName("");
+    setModalEmail("");
+    setModalPassword("");
+  };
+
+  const runPersistBooking = async () => {
+    const u = auth.currentUser;
+    if (!u || u.isAnonymous) return;
+    setSaving(true);
+    setSaveError("");
+    try {
+      await persistBooking(u);
+    } catch (error: unknown) {
+      if ((error as Error)?.message === "missing-name") {
+        setSaveError("Preenche o nome no resumo ou usa uma conta com nome público.");
+      } else {
+        console.error("Erro ao guardar agendamento:", error);
+        setSaveError("Não foi possível guardar. Verifica rede e regras do Firestore.");
+      }
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  /** Utilizadores anónimos escolhem Google ou criar conta; contas já identificadas gravam de imediato. */
+  const handleConfirmar = () => {
     setSaveError("");
     setSaveMessage("");
     if (!selectionReady || !selectedService) {
@@ -98,130 +191,103 @@ export function ClientView({
       return;
     }
 
-    setSaving(true);
-    try {
-      let currentUser = auth.currentUser;
-      if (!currentUser) {
-        const { user: googleUser } = await signInWithPopup(auth, googleProvider);
-        currentUser = googleUser;
-      }
+    const u = auth.currentUser;
+    if (!u || u.isAnonymous) {
+      setAuthModalError("");
+      setModalName(clientName.trim());
+      setShowAuthChoiceModal(true);
+      return;
+    }
 
-      const displayNameFromAuth = currentUser.displayName?.trim() ?? null;
-      const emailFromAuth = currentUser.email;
-      const resolvedName = (displayNameFromAuth || clientName.trim() || "Cliente").trim();
-      if (!resolvedName || resolvedName === "Cliente") {
-        setSaveError("Não foi possível obter o nome. Preenche o campo nome ou usa uma conta Google com nome público.");
-        setSaving(false);
+    void runPersistBooking();
+  };
+
+  const handleModalGoogle = async () => {
+    setAuthModalError("");
+    setAuthModalLoading(true);
+    try {
+      const u = auth.currentUser;
+      let signedUser: User;
+      if (u?.isAnonymous) {
+        const cred = await linkWithPopup(u, googleProvider);
+        signedUser = cred.user;
+      } else if (!u) {
+        const cred = await signInWithPopup(auth, googleProvider);
+        signedUser = cred.user;
+      } else {
+        signedUser = u;
+      }
+      if (signedUser.isAnonymous) {
+        setAuthModalError("Ainda em sessão anónima. Tenta outra opção.");
         return;
       }
-
-      const scheduledAt = new Date(`${date}T${time}:00`);
-      const serviceFromForm: Service = {
-        id: selectedService.id,
-        name: selectedService.name,
-        price: selectedService.price,
-        duration: selectedService.duration,
-        description: selectedService.description,
-      };
-
-      await addDoc(collection(db, "agendamentos"), {
-        userId: currentUser.uid,
-        userDisplayName: resolvedName,
-        userEmail: emailFromAuth ?? null,
-        serviceId: selectedService.id,
-        serviceName: selectedService.name,
-        servicePrice: selectedService.price,
-        serviceDuration: selectedService.duration,
-        serviceDescription: selectedService.description,
-        date,
-        time,
-        phone: cleanPhone,
-        status: "pending",
-        data_agendada: Timestamp.fromDate(scheduledAt),
-        createdAt: serverTimestamp(),
-      });
-
-      const agRef = await addDoc(collection(db, "Agendamento"), {
-        name: selectedService.name,
-        price: selectedService.price,
-        duracao: selectedService.duration,
-        descricao: selectedService.description,
-        clienteId: currentUser.uid,
-        clientName: resolvedName,
-        phone: cleanPhone,
-        serviceId: selectedService.id,
-        status: "pending",
-        data_agendada: Timestamp.fromDate(scheduledAt),
-        dataCriacao: serverTimestamp(),
-      });
-
-      const newAppointment: Appointment = {
-        id: agRef.id,
-        clientId: currentUser.uid,
-        clientName: resolvedName,
-        phone: cleanPhone,
-        service: serviceFromForm,
-        date,
-        time,
-        status: "pending",
-        createdAt: new Date().toISOString(),
-      };
-      setAppointments((current) => [newAppointment, ...current]);
-
-      setSaveMessage("Agendamento confirmado e guardado.");
-      setTab("mine");
-      setTime("");
-      if (currentUser.isAnonymous) {
-        setShowSavePrompt(true);
+      try {
+        await persistBooking(signedUser);
+      } catch (persistErr: unknown) {
+        if ((persistErr as Error)?.message === "missing-name") {
+          setAuthModalError("Preenche o nome no resumo ou usa uma conta Google com nome público.");
+        } else {
+          console.error(persistErr);
+          setAuthModalError("Não foi possível guardar o agendamento. Verifica o Firestore.");
+        }
       }
     } catch (error: unknown) {
-      const code = (error as { code?: string })?.code ?? "";
-      if (code === "auth/popup-closed-by-user") {
-        setSaveError("Login cancelado. Tenta novamente quando quiseres confirmar.");
-      } else {
-        console.error("Erro ao confirmar agendamento:", error);
-        setSaveError("Não foi possível guardar. Verifica rede, regras do Firestore e se o Google Sign-In está ativo.");
-      }
+      console.error(error);
+      setAuthModalError(describeAuthError(error, "google"));
     } finally {
-      setSaving(false);
+      setAuthModalLoading(false);
     }
   };
 
-  const handleSignupAfterBooking = async () => {
-    if (!user) return;
-    setSignupError("");
-    if (!signupEmail.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(signupEmail.trim())) {
-      setSignupError("Escreve um email válido.");
+  const handleModalCriarConta = async () => {
+    setAuthModalError("");
+    const name = modalName.trim();
+    const email = modalEmail.trim();
+    if (!name) {
+      setAuthModalError("Indica o teu nome.");
       return;
     }
-    if (signupPassword.length < 6) {
-      setSignupError("A senha precisa de pelo menos 6 caracteres.");
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      setAuthModalError("Indica um email válido.");
       return;
     }
-    setSignupLoading(true);
+    if (modalPassword.length < 6) {
+      setAuthModalError("A senha precisa de pelo menos 6 caracteres.");
+      return;
+    }
+
+    setAuthModalLoading(true);
     try {
-      const oldGuestId = user.uid;
-      const credential = await createUserWithEmailAndPassword(auth, signupEmail.trim(), signupPassword);
-      const display = clientName.trim() || credential.user.displayName || "Cliente";
-      await updateProfile(credential.user, { displayName: display });
+      const previous = auth.currentUser;
+      const oldUid = previous?.isAnonymous ? previous.uid : undefined;
+
+      const credential = await createUserWithEmailAndPassword(auth, email, modalPassword);
+      await updateProfile(credential.user, { displayName: name });
       await setDoc(doc(db, "PerfisCliente", credential.user.uid), {
-        displayName: display,
+        displayName: name,
         phone: cleanPhone,
-        email: signupEmail.trim(),
+        email,
         dataAtualizacao: serverTimestamp(),
       });
-      await onUpgradeGuest(credential.user, oldGuestId);
-      setShowSavePrompt(false);
-      setSignupEmail("");
-      setSignupPassword("");
+      if (oldUid) {
+        await onUpgradeGuest(credential.user, oldUid);
+      }
+      setClientName(name);
+      try {
+        await persistBooking(credential.user);
+      } catch (persistErr: unknown) {
+        if ((persistErr as Error)?.message === "missing-name") {
+          setAuthModalError("Preenche o nome no resumo.");
+        } else {
+          console.error(persistErr);
+          setAuthModalError("Conta criada, mas falhou ao guardar o agendamento. Tenta confirmar de novo.");
+        }
+      }
     } catch (error: unknown) {
-      const code = (error as { code?: string })?.code ?? "";
-      if (code === "auth/email-already-in-use") setSignupError("Esse email já está cadastrado. Faz login na próxima vez.");
-      else if (code === "auth/invalid-email") setSignupError("Email inválido.");
-      else if (code === "auth/weak-password") setSignupError("Senha muito fraca. Usa pelo menos 6 caracteres.");
-      else setSignupError("Não foi possível criar a conta. Tenta novamente.");
+      console.error(error);
+      setAuthModalError(describeAuthError(error, "signup"));
     } finally {
-      setSignupLoading(false);
+      setAuthModalLoading(false);
     }
   };
 
@@ -230,7 +296,7 @@ export function ClientView({
       <header className="border-b border-border bg-card/80 backdrop-blur-xl">
         <div className="mx-auto flex max-w-7xl flex-col gap-4 px-4 py-5 sm:flex-row sm:items-center sm:justify-between lg:px-8">
           <div className="flex items-center gap-3">
-            {user?.photoURL ? (
+            {user.photoURL ? (
               <img src={user.photoURL} alt={user.displayName ?? "Foto do usuário"} className="h-12 w-12 rounded-2xl object-cover" />
             ) : (
               <div className="grid h-12 w-12 place-items-center rounded-2xl bg-rose-soft text-primary">
@@ -239,27 +305,24 @@ export function ClientView({
             )}
             <div>
               <p className="text-sm text-muted-foreground">
-                {user ? `Olá, ${user.displayName ?? "cliente"}` : "Estás a navegar como visitante"}
+                Olá, {user.isAnonymous ? "convidado(a)" : user.displayName ?? "cliente"}
               </p>
               <h1 className="text-2xl font-extrabold text-foreground">Teu salão de unhas</h1>
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
+            <Button variant="secondary" type="button" onClick={onOpenLogin}>
+              Início / Conta
+            </Button>
             <Button variant={tab === "new" ? "primary" : "secondary"} onClick={() => setTab("new")}>
               Novo agendamento
             </Button>
-            <Button variant={tab === "mine" ? "primary" : "secondary"} onClick={() => setTab("mine")} disabled={!user}>
+            <Button variant={tab === "mine" ? "primary" : "secondary"} onClick={() => setTab("mine")}>
               Meus agendamentos
             </Button>
-            {user ? (
-              <Button variant="ghost" onClick={onLogout}>
-                Sair
-              </Button>
-            ) : (
-              <Button variant="secondary" onClick={onOpenLogin}>
-                Entrar na conta
-              </Button>
-            )}
+            <Button variant="ghost" onClick={onLogout}>
+              Sair
+            </Button>
           </div>
         </div>
       </header>
@@ -404,73 +467,102 @@ export function ClientView({
             ) : (
               <Panel className="col-span-full p-10 text-center">
                 <Sparkles className="mx-auto h-10 w-10 text-primary" />
-                <h2 className="mt-4 text-xl font-bold">{user ? "Ainda não há agendamentos" : "Inicia sessão para ver os teus agendamentos"}</h2>
-                {!user && (
-                  <Button className="mt-4" variant="secondary" onClick={onOpenLogin}>
-                    Entrar
-                  </Button>
-                )}
+                <h2 className="mt-4 text-xl font-bold">Ainda não há agendamentos</h2>
               </Panel>
             )}
           </div>
         )}
       </div>
 
-      {showSavePrompt && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4" role="dialog" aria-modal="true">
-          <div className="w-full max-w-md rounded-3xl bg-card p-6 shadow-float">
-            <div className="mb-4 flex items-start gap-3">
-              <div className="grid h-11 w-11 place-items-center rounded-2xl bg-rose-soft text-primary">
-                <Lock className="h-5 w-5" />
-              </div>
-              <div className="flex-1">
-                <h3 className="text-lg font-bold text-foreground">Quer salvar seus dados?</h3>
+      {showAuthChoiceModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4 backdrop-blur-sm"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="auth-choice-title"
+        >
+          <div className="w-full max-w-md rounded-3xl border border-border bg-card p-6 shadow-float">
+            <div className="mb-4 flex items-start justify-between gap-3">
+              <div>
+                <h3 id="auth-choice-title" className="text-lg font-bold text-foreground">
+                  Como queres confirmar?
+                </h3>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  Quer salvar seus dados para o seu próximo agendamento ser mais rápido? Crie uma senha de acesso.
+                  Liga uma conta Google ou cria uma com email para guardarmos o teu agendamento.
                 </p>
               </div>
               <button
                 type="button"
-                onClick={() => setShowSavePrompt(false)}
+                onClick={() => {
+                  setShowAuthChoiceModal(false);
+                  setAuthModalError("");
+                }}
                 className="rounded-full p-1 text-muted-foreground hover:bg-muted"
                 aria-label="Fechar"
+                disabled={authModalLoading}
               >
                 <X className="h-4 w-4" />
               </button>
             </div>
-            <div className="space-y-3">
-              <input
-                className={inputClass}
-                type="email"
-                placeholder="Email"
-                value={signupEmail}
-                onChange={(e) => setSignupEmail(e.target.value)}
-                autoComplete="email"
-              />
-              <input
-                className={inputClass}
-                type="password"
-                placeholder="Senha (mín. 6 caracteres)"
-                value={signupPassword}
-                onChange={(e) => setSignupPassword(e.target.value)}
-                autoComplete="new-password"
-              />
-              {signupError && (
+
+            <div className="space-y-4">
+              <Button
+                type="button"
+                variant="secondary"
+                className="w-full"
+                onClick={() => void handleModalGoogle()}
+                disabled={authModalLoading}
+              >
+                {authModalLoading ? <Loader2 className="h-5 w-5 animate-spin" /> : <GoogleMark />}
+                Entrar com Google
+              </Button>
+
+              <div className="relative flex items-center gap-3 text-xs uppercase tracking-widest text-muted-foreground">
+                <span className="h-px flex-1 bg-border" />
+                <span>ou criar conta</span>
+                <span className="h-px flex-1 bg-border" />
+              </div>
+
+              <div className="space-y-3">
+                <input
+                  className={inputClass}
+                  type="text"
+                  placeholder="Nome completo"
+                  value={modalName}
+                  onChange={(e) => setModalName(e.target.value)}
+                  autoComplete="name"
+                  disabled={authModalLoading}
+                />
+                <input
+                  className={inputClass}
+                  type="email"
+                  placeholder="Email"
+                  value={modalEmail}
+                  onChange={(e) => setModalEmail(e.target.value)}
+                  autoComplete="email"
+                  disabled={authModalLoading}
+                />
+                <input
+                  className={inputClass}
+                  type="password"
+                  placeholder="Senha (mín. 6 caracteres)"
+                  value={modalPassword}
+                  onChange={(e) => setModalPassword(e.target.value)}
+                  autoComplete="new-password"
+                  disabled={authModalLoading}
+                />
+              </div>
+
+              <Button type="button" className="w-full" onClick={() => void handleModalCriarConta()} disabled={authModalLoading}>
+                {authModalLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ChevronRight className="h-4 w-4" />}
+                Criar conta e confirmar
+              </Button>
+
+              {authModalError && (
                 <p className="flex items-center gap-2 text-sm font-medium text-danger">
-                  <AlertCircle className="h-4 w-4" /> {signupError}
+                  <AlertCircle className="h-4 w-4 shrink-0" /> {authModalError}
                 </p>
               )}
-              <Button className="w-full" onClick={handleSignupAfterBooking} disabled={signupLoading}>
-                {signupLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Lock className="h-4 w-4" />}
-                Criar conta
-              </Button>
-              <button
-                type="button"
-                onClick={() => setShowSavePrompt(false)}
-                className="w-full text-sm font-medium text-muted-foreground hover:text-foreground"
-              >
-                Agora não, obrigada
-              </button>
             </div>
           </div>
         </div>
