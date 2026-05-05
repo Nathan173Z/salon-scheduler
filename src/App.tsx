@@ -525,7 +525,7 @@ function ClientView({
       <header className="border-b border-border bg-card/80 backdrop-blur-xl">
         <div className="mx-auto flex max-w-7xl flex-col gap-4 px-4 py-5 sm:flex-row sm:items-center sm:justify-between lg:px-8">
           <div className="flex items-center gap-3">
-            {user.photoURL ? (
+            {user?.photoURL ? (
               <img src={user.photoURL} alt={user.displayName ?? "Foto do usuário"} className="h-12 w-12 rounded-2xl object-cover" />
             ) : (
               <div className="grid h-12 w-12 place-items-center rounded-2xl bg-rose-soft text-primary">
@@ -533,14 +533,16 @@ function ClientView({
               </div>
             )}
             <div>
-              <p className="text-sm text-muted-foreground">Olá, {user.displayName ?? "cliente"}</p>
+              <p className="text-sm text-muted-foreground">Olá, {user?.displayName ?? "visitante"}</p>
               <h1 className="text-2xl font-extrabold text-foreground">Teu salão de unhas</h1>
             </div>
           </div>
           <div className="flex gap-2">
             <Button variant={tab === "new" ? "primary" : "secondary"} onClick={() => setTab("new")}>Novo agendamento</Button>
             <Button variant={tab === "mine" ? "primary" : "secondary"} onClick={() => setTab("mine")}>Meus agendamentos</Button>
-            <Button variant="ghost" onClick={onLogout}>Sair</Button>
+            {user && !user.isAnonymous ? (
+              <Button variant="ghost" onClick={onLogout}>Sair</Button>
+            ) : null}
           </div>
         </div>
       </header>
