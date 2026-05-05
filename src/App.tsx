@@ -186,7 +186,7 @@ function LoginView({
   onAdmin,
   onGuest,
 }: {
-  onClient: () => Promise<void>;
+  onClient: () => Promise<unknown>;
   onEmailAuth: (email: string, password: string, mode: "login" | "signup") => Promise<void>;
   onAdmin: () => void;
   onGuest: () => void;
