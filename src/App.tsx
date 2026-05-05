@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import {
   createUserWithEmailAndPassword,
   onAuthStateChanged,
+  signInAnonymously,
   signInWithEmailAndPassword,
   signInWithPopup,
   signOut,
@@ -17,7 +18,7 @@ import type { Appointment, AppointmentStatus, BookingProfile, Service, View } fr
 import { parseFirebaseDate, todayISO, toLocalISODate } from "@/features/salon/utils";
 
 export default function App() {
-  const [view, setView] = useState<View>("login");
+  const [view, setView] = useState<View>("client");
   const [user, setUser] = useState<FirebaseUser | null>(null);
   const [services, setServices] = useState<Service[]>([]);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
@@ -130,20 +131,8 @@ export default function App() {
     setView("client");
   };
 
-  const handleGuestAccess = () => {
-    let guestId = localStorage.getItem("bella-guest-id");
-    if (!guestId) {
-      guestId = `guest-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-      localStorage.setItem("bella-guest-id", guestId);
-    }
-    const guestUser = {
-      uid: guestId,
-      displayName: "Convidado",
-      email: null,
-      photoURL: null,
-      isAnonymous: true,
-    } as unknown as FirebaseUser;
-    setUser(guestUser);
+  const handleGuestAccess = async () => {
+    await signInAnonymously(auth);
     setView("client");
   };
 
@@ -168,18 +157,21 @@ export default function App() {
   const handleLogout = async () => {
     if (auth.currentUser) await signOut(auth);
     setUser(null);
-    setView("login");
+    setView("client");
   };
 
-  const handleUpgradeGuest = async (newUser: FirebaseUser, oldGuestId: string) => {
+  const handleUpgradeGuest = async (newUser: FirebaseUser, oldAnonymousUid: string) => {
     try {
-      const q = query(collection(db, "Agendamento"), where("clienteId", "==", oldGuestId));
-      const snap = await getDocs(q);
-      await Promise.all(snap.docs.map((d) => updateDoc(doc(db, "Agendamento", d.id), { clienteId: newUser.uid })));
+      const qAg = query(collection(db, "Agendamento"), where("clienteId", "==", oldAnonymousUid));
+      const snapAg = await getDocs(qAg);
+      await Promise.all(snapAg.docs.map((d) => updateDoc(doc(db, "Agendamento", d.id), { clienteId: newUser.uid })));
+
+      const qBook = query(collection(db, "agendamentos"), where("userId", "==", oldAnonymousUid));
+      const snapBook = await getDocs(qBook);
+      await Promise.all(snapBook.docs.map((d) => updateDoc(doc(db, "agendamentos", d.id), { userId: newUser.uid })));
     } catch (error) {
       console.error("Erro ao migrar agendamentos do convidado:", error);
     }
-    localStorage.removeItem("bella-guest-id");
     setUser(newUser);
   };
 
@@ -196,9 +188,17 @@ export default function App() {
   };
 
   if (view === "login") {
-    return <LoginView onClient={handleGoogleSignIn} onEmailAuth={handleEmailAuth} onAdmin={() => setView("admin")} onGuest={handleGuestAccess} />;
+    return (
+      <LoginView
+        onClient={handleGoogleSignIn}
+        onEmailAuth={handleEmailAuth}
+        onAdmin={() => setView("admin")}
+        onGuest={handleGuestAccess}
+        onBackToBooking={() => setView("client")}
+      />
+    );
   }
-  if (view === "client" && user) {
+  if (view === "client") {
     return (
       <ClientView
         services={services}
@@ -209,11 +209,9 @@ export default function App() {
         user={user}
         onUpgradeGuest={handleUpgradeGuest}
         bookingProfile={bookingProfile}
+        onOpenLogin={() => setView("login")}
       />
     );
-  }
-  if (view === "client" && !user) {
-    return <LoginView onClient={handleGoogleSignIn} onEmailAuth={handleEmailAuth} onAdmin={() => setView("admin")} onGuest={handleGuestAccess} />;
   }
   return (
     <AdminView

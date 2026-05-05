@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type Dispatch, type SetStateAction } from "react";
-import { createUserWithEmailAndPassword, updateProfile } from "firebase/auth";
+import { createUserWithEmailAndPassword, signInWithPopup, updateProfile } from "firebase/auth";
 import { Timestamp, addDoc, collection, doc, serverTimestamp, setDoc } from "firebase/firestore";
 import {
   AlertCircle,
@@ -12,7 +12,7 @@ import {
   User,
   X,
 } from "lucide-react";
-import { auth, db } from "@/firebase";
+import { auth, db, googleProvider } from "@/firebase";
 import type { Appointment, BookingProfile, ClientTab, FirebaseUser, Service } from "./types";
 import { formatBRL, generateTimeSlots, todayISO } from "./utils";
 import { Badge, Button, inputClass, Panel } from "./salon-ui";
@@ -23,10 +23,12 @@ type ClientViewProps = {
   setAppointments: Dispatch<SetStateAction<Appointment[]>>;
   isSlotAvailable: (date: string, time: string) => boolean;
   onLogout: () => void;
-  user: FirebaseUser;
+  /** Sessão Firebase (null = a navegar serviços/horários sem login). */
+  user: FirebaseUser | null;
   onUpgradeGuest: (newUser: FirebaseUser, oldGuestId: string) => Promise<void>;
-  /** Null quando não há sessão Firebase (ex.: convidado) ou ainda sem dados em `PerfisCliente`. */
+  /** Null quando não há sessão ou ainda sem dados em `PerfisCliente`. */
   bookingProfile: BookingProfile | null;
+  onOpenLogin: () => void;
 };
 
 export function ClientView({
@@ -38,12 +40,13 @@ export function ClientView({
   user,
   onUpgradeGuest,
   bookingProfile,
+  onOpenLogin,
 }: ClientViewProps) {
   const [tab, setTab] = useState<ClientTab>("new");
   const [serviceId, setServiceId] = useState<string | null>(services[0]?.id ?? null);
   const [date, setDate] = useState(todayISO());
   const [time, setTime] = useState("");
-  const [clientName, setClientName] = useState(user.displayName && user.displayName !== "Convidado" ? user.displayName : "");
+  const [clientName, setClientName] = useState("");
   const [saving, setSaving] = useState(false);
   const [saveMessage, setSaveMessage] = useState("");
   const [saveError, setSaveError] = useState("");
@@ -56,95 +59,136 @@ export function ClientView({
   const selectedService = services.find((service) => service.id === serviceId) ?? null;
   const slots = useMemo(generateTimeSlots, []);
   const cleanPhone = phone.replace(/\D/g, "");
-  const canSubmit = Boolean(
-    user.uid && selectedService && date && time && clientName.trim() && cleanPhone.length >= 10,
-  );
-  const clientAppointments = appointments.filter((appointment) => appointment.clientId === user.uid);
+  const selectionReady = Boolean(selectedService && date && time);
+  const canConfirm = selectionReady && cleanPhone.length >= 10;
+  const clientAppointments = user ? appointments.filter((appointment) => appointment.clientId === user.uid) : [];
 
   useEffect(() => {
     if (!serviceId && services[0]) setServiceId(services[0].id);
   }, [serviceId, services]);
 
   useEffect(() => {
-    if (bookingProfile === null) {
-      const fallbackName = user.displayName && user.displayName !== "Convidado" ? user.displayName : "";
-      setClientName(fallbackName);
+    if (!user) {
+      setClientName("");
       setPhone("");
+      return;
+    }
+    if (bookingProfile === null) {
+      const fallbackName = user.displayName?.trim() ? user.displayName : "";
+      if (fallbackName) setClientName(fallbackName);
       return;
     }
     setClientName(bookingProfile.name);
     setPhone(bookingProfile.phone);
-  }, [bookingProfile?.name, bookingProfile?.phone, user.displayName, user.uid]);
+  }, [user?.uid, bookingProfile?.name, bookingProfile?.phone, user?.displayName]);
 
-  const schedule = async () => {
-    if (!user.uid) {
-      setSaveError("Entra com Google antes de salvar o agendamento.");
-      return;
-    }
-    if (!clientName.trim()) {
-      setSaveError("Escreve teu nome para solicitar o agendamento.");
+  /**
+   * Confirma o agendamento: sem sessão Firebase abre o Google Sign-In; em seguida grava na coleção `agendamentos`
+   * (e espelha em `Agendamento` para o painel existente). Um único clique — após o login o salvamento continua no mesmo fluxo.
+   */
+  const handleConfirmar = async () => {
+    setSaveError("");
+    setSaveMessage("");
+    if (!selectionReady || !selectedService) {
+      setSaveError("Escolhe serviço, data e horário.");
       return;
     }
     if (cleanPhone.length < 10) {
-      setSaveError("Escreve um telefone válido com DDD para solicitar o agendamento.");
+      setSaveError("Indica um telefone válido com DDD (mín. 10 dígitos).");
       return;
     }
-    if (!canSubmit) return;
+
     setSaving(true);
-    setSaveMessage("");
-    setSaveError("");
-    const scheduledAt = new Date(`${date}T${time}:00`);
-    const serviceFromForm: Service = {
-      id: selectedService?.id ?? "manual-service",
-      name: selectedService?.name ?? "",
-      price: selectedService?.price ?? 0,
-      duration: selectedService?.duration ?? 0,
-      description: selectedService?.description ?? "",
-    };
-    const newAppointment: Appointment = {
-      id: Date.now(),
-      clientId: user.uid,
-      clientName: clientName.trim(),
-      phone: cleanPhone,
-      service: serviceFromForm,
-      date,
-      time,
-      status: "pending",
-      createdAt: new Date().toISOString(),
-    };
     try {
-      const docRef = await addDoc(collection(db, "Agendamento"), {
-        name: selectedService?.name ?? "",
-        price: selectedService?.price ?? 0,
-        duracao: selectedService?.duration ?? 0,
-        descricao: selectedService?.description ?? "",
-        clienteId: user.uid,
-        clientName: clientName.trim() || user.displayName || "Cliente",
+      let currentUser = auth.currentUser;
+      if (!currentUser) {
+        const { user: googleUser } = await signInWithPopup(auth, googleProvider);
+        currentUser = googleUser;
+      }
+
+      const displayNameFromAuth = currentUser.displayName?.trim() ?? null;
+      const emailFromAuth = currentUser.email;
+      const resolvedName = (displayNameFromAuth || clientName.trim() || "Cliente").trim();
+      if (!resolvedName || resolvedName === "Cliente") {
+        setSaveError("Não foi possível obter o nome. Preenche o campo nome ou usa uma conta Google com nome público.");
+        setSaving(false);
+        return;
+      }
+
+      const scheduledAt = new Date(`${date}T${time}:00`);
+      const serviceFromForm: Service = {
+        id: selectedService.id,
+        name: selectedService.name,
+        price: selectedService.price,
+        duration: selectedService.duration,
+        description: selectedService.description,
+      };
+
+      await addDoc(collection(db, "agendamentos"), {
+        userId: currentUser.uid,
+        userDisplayName: resolvedName,
+        userEmail: emailFromAuth ?? null,
+        serviceId: selectedService.id,
+        serviceName: selectedService.name,
+        servicePrice: selectedService.price,
+        serviceDuration: selectedService.duration,
+        serviceDescription: selectedService.description,
+        date,
+        time,
         phone: cleanPhone,
-        serviceId: selectedService?.id ?? null,
+        status: "pending",
+        data_agendada: Timestamp.fromDate(scheduledAt),
+        createdAt: serverTimestamp(),
+      });
+
+      const agRef = await addDoc(collection(db, "Agendamento"), {
+        name: selectedService.name,
+        price: selectedService.price,
+        duracao: selectedService.duration,
+        descricao: selectedService.description,
+        clienteId: currentUser.uid,
+        clientName: resolvedName,
+        phone: cleanPhone,
+        serviceId: selectedService.id,
         status: "pending",
         data_agendada: Timestamp.fromDate(scheduledAt),
         dataCriacao: serverTimestamp(),
       });
-      setAppointments((current) => [{ ...newAppointment, id: docRef.id }, ...current]);
-      setSaveMessage("Agendamento salvo no Firebase com sucesso.");
+
+      const newAppointment: Appointment = {
+        id: agRef.id,
+        clientId: currentUser.uid,
+        clientName: resolvedName,
+        phone: cleanPhone,
+        service: serviceFromForm,
+        date,
+        time,
+        status: "pending",
+        createdAt: new Date().toISOString(),
+      };
+      setAppointments((current) => [newAppointment, ...current]);
+
+      setSaveMessage("Agendamento confirmado e guardado.");
       setTab("mine");
       setTime("");
-      if (user.isAnonymous || user.uid.startsWith("guest-")) {
-        setPhone("");
-      }
-      if (user.isAnonymous) {
+      if (currentUser.isAnonymous) {
         setShowSavePrompt(true);
       }
-    } catch (error) {
-      console.error("Erro ao salvar agendamento no Firestore:", error);
-      setSaveError("Não foi possível salvar. Verifica se o Firestore está criado e se as regras permitem escrita para usuário logado.");
+    } catch (error: unknown) {
+      const code = (error as { code?: string })?.code ?? "";
+      if (code === "auth/popup-closed-by-user") {
+        setSaveError("Login cancelado. Tenta novamente quando quiseres confirmar.");
+      } else {
+        console.error("Erro ao confirmar agendamento:", error);
+        setSaveError("Não foi possível guardar. Verifica rede, regras do Firestore e se o Google Sign-In está ativo.");
+      }
     } finally {
       setSaving(false);
     }
   };
 
   const handleSignupAfterBooking = async () => {
+    if (!user) return;
     setSignupError("");
     if (!signupEmail.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(signupEmail.trim())) {
       setSignupError("Escreve um email válido.");
@@ -186,7 +230,7 @@ export function ClientView({
       <header className="border-b border-border bg-card/80 backdrop-blur-xl">
         <div className="mx-auto flex max-w-7xl flex-col gap-4 px-4 py-5 sm:flex-row sm:items-center sm:justify-between lg:px-8">
           <div className="flex items-center gap-3">
-            {user.photoURL ? (
+            {user?.photoURL ? (
               <img src={user.photoURL} alt={user.displayName ?? "Foto do usuário"} className="h-12 w-12 rounded-2xl object-cover" />
             ) : (
               <div className="grid h-12 w-12 place-items-center rounded-2xl bg-rose-soft text-primary">
@@ -194,20 +238,28 @@ export function ClientView({
               </div>
             )}
             <div>
-              <p className="text-sm text-muted-foreground">Olá, {user.displayName ?? "cliente"}</p>
+              <p className="text-sm text-muted-foreground">
+                {user ? `Olá, ${user.displayName ?? "cliente"}` : "Estás a navegar como visitante"}
+              </p>
               <h1 className="text-2xl font-extrabold text-foreground">Teu salão de unhas</h1>
             </div>
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <Button variant={tab === "new" ? "primary" : "secondary"} onClick={() => setTab("new")}>
               Novo agendamento
             </Button>
-            <Button variant={tab === "mine" ? "primary" : "secondary"} onClick={() => setTab("mine")}>
+            <Button variant={tab === "mine" ? "primary" : "secondary"} onClick={() => setTab("mine")} disabled={!user}>
               Meus agendamentos
             </Button>
-            <Button variant="ghost" onClick={onLogout}>
-              Sair
-            </Button>
+            {user ? (
+              <Button variant="ghost" onClick={onLogout}>
+                Sair
+              </Button>
+            ) : (
+              <Button variant="secondary" onClick={onOpenLogin}>
+                Entrar na conta
+              </Button>
+            )}
           </div>
         </div>
       </header>
@@ -310,20 +362,19 @@ export function ClientView({
                   className="h-12 w-full rounded-xl border border-surface-muted/20 bg-surface-muted/10 px-4 text-sm text-surface-dark-foreground outline-none placeholder:text-surface-muted focus:border-primary"
                   value={clientName}
                   onChange={(event) => setClientName(event.target.value)}
-                  placeholder="Nome obrigatório"
-                  required
+                  placeholder="Nome (ou usa o nome da conta Google ao confirmar)"
                 />
                 <input
                   className="h-12 w-full rounded-xl border border-surface-muted/20 bg-surface-muted/10 px-4 text-sm text-surface-dark-foreground outline-none placeholder:text-surface-muted focus:border-primary"
                   value={phone}
                   onChange={(event) => setPhone(event.target.value)}
-                  placeholder="Telefone obrigatório"
+                  placeholder="Telefone com DDD (obrigatório)"
                   inputMode="tel"
                   required
                 />
-                <Button className="w-full" onClick={schedule} disabled={!canSubmit || saving}>
+                <Button className="w-full" onClick={handleConfirmar} disabled={!canConfirm || saving}>
                   {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <ChevronRight className="h-4 w-4" />}
-                  Solicitar Agendamento
+                  Confirmar agendamento
                 </Button>
                 {saveError && <p className="text-sm font-semibold text-danger">{saveError}</p>}
                 {saveMessage && <p className="text-sm font-semibold text-success">{saveMessage}</p>}
@@ -353,7 +404,12 @@ export function ClientView({
             ) : (
               <Panel className="col-span-full p-10 text-center">
                 <Sparkles className="mx-auto h-10 w-10 text-primary" />
-                <h2 className="mt-4 text-xl font-bold">Ainda não há agendamentos</h2>
+                <h2 className="mt-4 text-xl font-bold">{user ? "Ainda não há agendamentos" : "Inicia sessão para ver os teus agendamentos"}</h2>
+                {!user && (
+                  <Button className="mt-4" variant="secondary" onClick={onOpenLogin}>
+                    Entrar
+                  </Button>
+                )}
               </Panel>
             )}
           </div>

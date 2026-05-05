@@ -17,7 +17,8 @@ type LoginViewProps = {
   onClient: () => Promise<void>;
   onEmailAuth: (payload: EmailAuthPayload) => Promise<void>;
   onAdmin: () => void;
-  onGuest: () => void;
+  onGuest: () => Promise<void>;
+  onBackToBooking?: () => void;
 };
 
 const describeAuthError = (authError: unknown, mode: "login" | "signup" | "google") => {
@@ -62,7 +63,7 @@ const describeAuthError = (authError: unknown, mode: "login" | "signup" | "googl
   }
 };
 
-export function LoginView({ onClient, onEmailAuth, onAdmin, onGuest }: LoginViewProps) {
+export function LoginView({ onClient, onEmailAuth, onAdmin, onGuest, onBackToBooking }: LoginViewProps) {
   const [loading, setLoading] = useState(false);
   const [emailLoading, setEmailLoading] = useState(false);
   const [emailMode, setEmailMode] = useState<"login" | "signup">("login");
@@ -161,7 +162,23 @@ export function LoginView({ onClient, onEmailAuth, onAdmin, onGuest }: LoginView
         </div>
 
         <div className="mt-8 space-y-4">
-          <Button className="w-full" onClick={onGuest}>
+          {onBackToBooking && (
+            <Button variant="ghost" className="w-full" type="button" onClick={onBackToBooking}>
+              ← Voltar ao agendamento
+            </Button>
+          )}
+          <Button
+            className="w-full"
+            type="button"
+            onClick={async () => {
+              try {
+                await onGuest();
+              } catch (e) {
+                console.error(e);
+                setError("Não foi possível entrar como convidado. Verifica se o login anónimo está ativo no Firebase.");
+              }
+            }}
+          >
             <Calendar className="h-5 w-5" />
             Agendar como Convidado
           </Button>
