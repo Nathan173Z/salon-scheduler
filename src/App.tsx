@@ -979,7 +979,7 @@ function AdminView({
 }
 
 export default function App() {
-  const [view, setView] = useState<View>("login");
+  const [view, setView] = useState<View>("client");
   const [user, setUser] = useState<FirebaseUser | null>(null);
   const [services, setServices] = useState<Service[]>([]);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
