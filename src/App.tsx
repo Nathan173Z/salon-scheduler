@@ -503,7 +503,7 @@ function ClientView({
     }
     setSignupLoading(true);
     try {
-      const oldGuestId = user.uid;
+      const oldGuestId = user?.uid ?? "";
       const credential = await createUserWithEmailAndPassword(auth, signupEmail.trim(), signupPassword);
       await onUpgradeGuest(credential.user, oldGuestId);
       setShowSavePrompt(false);
