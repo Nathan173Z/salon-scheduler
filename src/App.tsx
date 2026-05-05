@@ -360,20 +360,22 @@ function ClientView({
   onLogout,
   user,
   onUpgradeGuest,
+  onRequireGoogleSignIn,
 }: {
   services: Service[];
   appointments: Appointment[];
   setAppointments: React.Dispatch<React.SetStateAction<Appointment[]>>;
   isSlotAvailable: (date: string, time: string) => boolean;
   onLogout: () => void;
-  user: FirebaseUser;
+  user: FirebaseUser | null;
   onUpgradeGuest: (newUser: FirebaseUser, oldGuestId: string) => Promise<void>;
+  onRequireGoogleSignIn: () => Promise<FirebaseUser>;
 }) {
   const [tab, setTab] = useState<ClientTab>("new");
   const [serviceId, setServiceId] = useState<string | null>(services[0]?.id ?? null);
   const [date, setDate] = useState(todayISO());
   const [time, setTime] = useState("");
-  const [clientName, setClientName] = useState(user.displayName && user.displayName !== "Convidado" ? user.displayName : "");
+  const [clientName, setClientName] = useState(user?.displayName && user.displayName !== "Convidado" ? user.displayName : "");
   const [saving, setSaving] = useState(false);
   const [saveMessage, setSaveMessage] = useState("");
   const [saveError, setSaveError] = useState("");
@@ -387,18 +389,23 @@ function ClientView({
   const slots = useMemo(generateTimeSlots, []);
   const cleanPhone = phone.replace(/\D/g, "");
   const canSubmit = Boolean(
-    user.uid &&
     selectedService &&
     date &&
     time &&
     clientName.trim() &&
     cleanPhone.length >= 10,
   );
-  const clientAppointments = appointments.filter((appointment) => appointment.clientId === user.uid);
+  const clientAppointments = user ? appointments.filter((appointment) => appointment.clientId === user.uid) : [];
 
   useEffect(() => {
     if (!serviceId && services[0]) setServiceId(services[0].id);
   }, [serviceId, services]);
+
+  useEffect(() => {
+    if (user?.displayName && user.displayName !== "Convidado" && !clientName) {
+      setClientName(user.displayName);
+    }
+  }, [user, clientName]);
 
   const schedule = async () => {
     if (!user.uid) {
