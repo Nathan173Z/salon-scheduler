@@ -83,7 +83,7 @@ export function PainelFinanceiro() {
   // Firestore: agendamentos
   useEffect(() => {
     const unsub = onSnapshot(
-      collection(db, "agendamentos"),
+      collection(db, "Agendamento"),
       (snap) => {
         setAgendamentos(
           snap.docs.map((d) => {
