@@ -14,7 +14,7 @@ import {
   Clock,
   Loader2,
   Sparkles,
-  User,
+  User as UserIcon,
   X,
 } from "lucide-react";
 import { auth, db, googleProvider } from "@/firebase";
@@ -300,7 +300,7 @@ export function ClientView({
               <img src={user.photoURL} alt={user.displayName ?? "Foto do usuário"} className="h-12 w-12 rounded-2xl object-cover" />
             ) : (
               <div className="grid h-12 w-12 place-items-center rounded-2xl bg-rose-soft text-primary">
-                <User className="h-6 w-6" />
+                <UserIcon className="h-6 w-6" />
               </div>
             )}
             <div>
