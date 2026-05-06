@@ -138,7 +138,7 @@ export function PainelFinanceiro() {
     categoriasDespesa,
     transacoes,
   } = useMemo(() => {
-    const concluidos = ["concluido", "concluído", "completed", "pago", "finalizado"];
+    const concluidos = ["concluido", "concluído", "completed", "pago", "finalizado", "confirmed", "confirmado"];
     const pendentes = ["pendente", "pending", "agendado"];
 
     const ags = agendamentos.filter((a) => isSameDay(a.data, hoje));
