@@ -320,7 +320,7 @@ export function AdminView({ services, appointments, blockedSlots, setBlockedSlot
               ))}
             </div>
           </div>
-        )}
+        {tab === "financeiro" && <PainelFinanceiro />}
       </section>
 
       {rejecting && (
