@@ -83,14 +83,14 @@ export function PainelFinanceiro() {
   // Firestore: agendamentos
   useEffect(() => {
     const unsub = onSnapshot(
-      collection(db, "agendamentos"),
+      collection(db, "Agendamento"),
       (snap) => {
         setAgendamentos(
           snap.docs.map((d) => {
             const data = d.data() as Record<string, unknown>;
             return {
               id: d.id,
-              valor: Number(data.valor ?? data.price ?? 0),
+              valor: Number(data.valor ?? data.price ?? data.servicePrice ?? 0),
               status: String(data.status ?? "").toLowerCase(),
               data: toDate(data.data ?? data.data_agendada ?? data.date),
             };
@@ -138,7 +138,7 @@ export function PainelFinanceiro() {
     categoriasDespesa,
     transacoes,
   } = useMemo(() => {
-    const concluidos = ["concluido", "concluído", "completed", "pago", "finalizado"];
+    const concluidos = ["concluido", "concluído", "completed", "pago", "finalizado", "confirmed", "confirmado"];
     const pendentes = ["pendente", "pending", "agendado"];
 
     const ags = agendamentos.filter((a) => isSameDay(a.data, hoje));
