@@ -17,8 +17,10 @@ import {
   Scissors,
   Shield,
   Trash2,
+  Wallet,
   XCircle,
 } from "lucide-react";
+import { PainelFinanceiro } from "./PainelFinanceiro";
 import { db } from "@/firebase";
 import type { AdminTab, Appointment, AppointmentStatus, Service } from "./types";
 import { blockDocId, formatBRL, generateTimeSlots, todayISO } from "./utils";
