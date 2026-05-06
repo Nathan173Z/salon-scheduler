@@ -90,7 +90,7 @@ export function PainelFinanceiro() {
             const data = d.data() as Record<string, unknown>;
             return {
               id: d.id,
-              valor: Number(data.valor ?? data.price ?? 0),
+              valor: Number(data.valor ?? data.price ?? data.servicePrice ?? 0),
               status: String(data.status ?? "").toLowerCase(),
               data: toDate(data.data ?? data.data_agendada ?? data.date),
             };
