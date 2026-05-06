@@ -17,8 +17,10 @@ import {
   Scissors,
   Shield,
   Trash2,
+  Wallet,
   XCircle,
 } from "lucide-react";
+import { PainelFinanceiro } from "./PainelFinanceiro";
 import { db } from "@/firebase";
 import type { AdminTab, Appointment, AppointmentStatus, Service } from "./types";
 import { blockDocId, formatBRL, generateTimeSlots, todayISO } from "./utils";
@@ -117,6 +119,7 @@ export function AdminView({ services, appointments, blockedSlots, setBlockedSlot
     { id: "agenda", label: "Agenda", icon: Calendar },
     { id: "availability", label: "Disponibilidade", icon: Ban },
     { id: "services", label: "Serviços", icon: Scissors },
+    { id: "financeiro", label: "Financeiro", icon: Wallet },
   ];
 
   return (
@@ -318,6 +321,7 @@ export function AdminView({ services, appointments, blockedSlots, setBlockedSlot
             </div>
           </div>
         )}
+        {tab === "financeiro" && <PainelFinanceiro />}
       </section>
 
       {rejecting && (

@@ -2,7 +2,7 @@ import type { User as FirebaseUser } from "firebase/auth";
 
 export type View = "login" | "client" | "admin";
 export type AppointmentStatus = "pending" | "confirmed" | "rejected";
-export type AdminTab = "agenda" | "availability" | "services";
+export type AdminTab = "agenda" | "availability" | "services" | "financeiro";
 export type ClientTab = "new" | "mine";
 
 export type Service = {
