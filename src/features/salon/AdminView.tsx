@@ -119,6 +119,7 @@ export function AdminView({ services, appointments, blockedSlots, setBlockedSlot
     { id: "agenda", label: "Agenda", icon: Calendar },
     { id: "availability", label: "Disponibilidade", icon: Ban },
     { id: "services", label: "Serviços", icon: Scissors },
+    { id: "financeiro", label: "Financeiro", icon: Wallet },
   ];
 
   return (
