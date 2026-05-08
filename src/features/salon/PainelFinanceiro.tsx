@@ -229,24 +229,101 @@ export function PainelFinanceiro() {
     }
   };
 
+  // Intervalo do resumo
+  const { inicio, fim, labelPeriodo } = useMemo(() => {
+    const f = new Date();
+    f.setHours(23, 59, 59, 999);
+    const i = new Date();
+    i.setHours(0, 0, 0, 0);
+    if (periodo === "semana") {
+      i.setDate(i.getDate() - 6);
+      return { inicio: i, fim: f, labelPeriodo: "Últimos 7 dias" };
+    }
+    if (periodo === "mes") {
+      i.setDate(1);
+      return { inicio: i, fim: f, labelPeriodo: "Mês atual" };
+    }
+    const ci = new Date(dataInicio + "T00:00:00");
+    const cf = new Date(dataFim + "T23:59:59");
+    return { inicio: ci, fim: cf, labelPeriodo: `${dataInicio} a ${dataFim}` };
+  }, [periodo, dataInicio, dataFim]);
+
+  const resumo = useMemo(() => {
+    const concluidos = ["concluido", "concluído", "completed", "pago", "finalizado", "confirmed", "confirmado"];
+    const pendentes = ["pendente", "pending", "agendado"];
+    const dentro = (d: Date | null) => !!d && d >= inicio && d <= fim;
+
+    const ags = agendamentos.filter((a) => dentro(a.data));
+    const desp = despesas.filter((d) => dentro(d.data));
+    const receita = ags.filter((a) => concluidos.includes(a.status)).reduce((s, a) => s + a.valor, 0);
+    const pend = ags.filter((a) => pendentes.includes(a.status)).reduce((s, a) => s + a.valor, 0);
+    const totalDesp = desp.reduce((s, d) => s + d.valor, 0);
+    const atendidos = ags.filter((a) => concluidos.includes(a.status)).length;
+    return {
+      receita,
+      pendente: pend,
+      despesas: totalDesp,
+      lucro: receita - totalDesp,
+      atendidos,
+      ticket: atendidos > 0 ? receita / atendidos : 0,
+      transacoes: [
+        ...ags
+          .filter((a) => concluidos.includes(a.status))
+          .map((a) => ({ tipo: "Entrada", descricao: "Serviço concluído", valor: a.valor, data: a.data })),
+        ...desp.map((d) => ({ tipo: "Saída", descricao: d.descricao ?? d.categoria, valor: d.valor, data: d.data })),
+      ].sort((a, b) => (b.data?.getTime() ?? 0) - (a.data?.getTime() ?? 0)),
+    };
+  }, [agendamentos, despesas, inicio, fim]);
+
   const gerarRelatorio = () => {
-    const linhas = [
-      ["Tipo", "Descrição", "Valor", "Data"],
-      ...transacoes.map((t) => [
+    const doc = new jsPDF();
+    const margin = 14;
+    let y = 18;
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(16);
+    doc.setTextColor(BRAND.primary);
+    doc.text("Bella Nails — Relatório Financeiro", margin, y);
+    y += 7;
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(10);
+    doc.setTextColor(BRAND.inkSoft);
+    doc.text(`Período: ${labelPeriodo}`, margin, y);
+    y += 5;
+    doc.text(`Gerado em: ${new Date().toLocaleString("pt-BR")}`, margin, y);
+    y += 8;
+
+    autoTable(doc, {
+      startY: y,
+      head: [["Indicador", "Valor"]],
+      body: [
+        ["Faturamento (Receita)", brl(resumo.receita)],
+        ["A Receber (Pendentes)", brl(resumo.pendente)],
+        ["Despesas Totais", brl(resumo.despesas)],
+        ["Lucro Líquido", brl(resumo.lucro)],
+        ["Clientes Atendidas", String(resumo.atendidos)],
+        ["Ticket Médio", brl(resumo.ticket)],
+      ],
+      theme: "grid",
+      headStyles: { fillColor: [105, 62, 77], textColor: 255 },
+      styles: { fontSize: 10 },
+    });
+
+    autoTable(doc, {
+      startY: (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 8,
+      head: [["Tipo", "Descrição", "Valor", "Data"]],
+      body: resumo.transacoes.map((t) => [
         t.tipo,
         t.descricao,
-        String(t.valor),
-        t.data?.toISOString() ?? "",
+        brl(t.valor),
+        t.data ? t.data.toLocaleDateString("pt-BR") : "-",
       ]),
-    ];
-    const csv = linhas.map((l) => l.map((c) => `"${c}"`).join(",")).join("\n");
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `relatorio-financeiro-${hoje.toISOString().slice(0, 10)}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+      theme: "striped",
+      headStyles: { fillColor: [155, 90, 112], textColor: 255 },
+      styles: { fontSize: 9 },
+    });
+
+    doc.save(`relatorio-financeiro-${new Date().toISOString().slice(0, 10)}.pdf`);
   };
 
   const barData = [
