@@ -714,3 +714,16 @@ function EmptyMsg({ texto }: { texto: string }) {
 }
 
 export default PainelFinanceiro;
+
+function ResumoItem({ label, valor, cor }: { label: string; valor: string; cor: string }) {
+  return (
+    <div className="rounded-xl border p-3" style={{ borderColor: BRAND.border, background: BRAND.bg }}>
+      <p className="text-[11px] font-semibold uppercase tracking-wider" style={{ color: BRAND.inkSoft }}>
+        {label}
+      </p>
+      <p className="mt-1 text-lg font-bold" style={{ color: cor }}>
+        {valor}
+      </p>
+    </div>
+  );
+}
