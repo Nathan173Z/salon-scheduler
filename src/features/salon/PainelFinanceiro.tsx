@@ -19,8 +19,12 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { ArrowDownCircle, ArrowUpCircle, FileText, PlusCircle, Wallet } from "lucide-react";
+import { ArrowDownCircle, ArrowUpCircle, CalendarRange, FileText, PlusCircle, Wallet } from "lucide-react";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 import { db } from "@/firebase";
+
+type Periodo = "semana" | "mes" | "custom";
 
 /** Paleta */
 const BRAND = {
