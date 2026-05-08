@@ -84,6 +84,13 @@ export function PainelFinanceiro() {
   const [showNovaDespesa, setShowNovaDespesa] = useState(false);
   const [novaDespesa, setNovaDespesa] = useState({ valor: "", categoria: "Materiais", descricao: "" });
 
+  // Filtro de período do resumo
+  const [periodo, setPeriodo] = useState<Periodo>("semana");
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const weekAgoStr = new Date(Date.now() - 6 * 86400000).toISOString().slice(0, 10);
+  const [dataInicio, setDataInicio] = useState(weekAgoStr);
+  const [dataFim, setDataFim] = useState(todayStr);
+
   // Firestore: agendamentos
   useEffect(() => {
     const unsub = onSnapshot(
