@@ -284,6 +284,16 @@ export function LoginView({ onClient, onEmailAuth, onAdmin, onGuest, onBackToBoo
                 {emailLoading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Lock className="h-5 w-5" />}
                 {emailMode === "login" ? "Entrar com email" : "Criar conta"}
               </Button>
+              {emailMode === "login" && (
+                <button
+                  type="button"
+                  onClick={handleResetPassword}
+                  disabled={resetLoading}
+                  className="block w-full text-center text-sm font-semibold text-primary underline-offset-4 hover:underline disabled:opacity-50"
+                >
+                  {resetLoading ? "A enviar..." : "Esqueceu a senha?"}
+                </button>
+              )}
             </div>
           </div>
 
