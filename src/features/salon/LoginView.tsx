@@ -325,6 +325,11 @@ export function LoginView({ onClient, onEmailAuth, onAdmin, onGuest, onBackToBoo
             <AlertCircle className="h-4 w-4" /> {error}
           </p>
         )}
+        {resetMessage && (
+          <p className="mt-4 flex items-center gap-2 text-sm font-medium text-primary">
+            <CheckCircle2 className="h-4 w-4" /> {resetMessage}
+          </p>
+        )}
       </Panel>
     </main>
   );
