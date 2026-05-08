@@ -1,7 +1,10 @@
 import { useState } from "react";
+import { sendPasswordResetEmail } from "firebase/auth";
+import { auth } from "@/firebase";
 import {
   AlertCircle,
   Calendar,
+  CheckCircle2,
   Loader2,
   Lock,
   Shield,
@@ -74,6 +77,28 @@ export function LoginView({ onClient, onEmailAuth, onAdmin, onGuest, onBackToBoo
   const [adminOpen, setAdminOpen] = useState(false);
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const [resetMessage, setResetMessage] = useState("");
+  const [resetLoading, setResetLoading] = useState(false);
+
+  const handleResetPassword = async () => {
+    setError("");
+    setResetMessage("");
+    const target = email.trim();
+    if (!target) {
+      setError("Digita teu email acima para receber o link de redefinição.");
+      return;
+    }
+    setResetLoading(true);
+    try {
+      await sendPasswordResetEmail(auth, target);
+      setResetMessage("Link enviado! Verifica teu email para redefinir a senha.");
+    } catch (authError) {
+      console.error("Erro ao enviar reset de senha:", authError);
+      setError(describeAuthError(authError, "login"));
+    } finally {
+      setResetLoading(false);
+    }
+  };
 
   const handleGoogle = async () => {
     setLoading(true);
@@ -259,6 +284,16 @@ export function LoginView({ onClient, onEmailAuth, onAdmin, onGuest, onBackToBoo
                 {emailLoading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Lock className="h-5 w-5" />}
                 {emailMode === "login" ? "Entrar com email" : "Criar conta"}
               </Button>
+              {emailMode === "login" && (
+                <button
+                  type="button"
+                  onClick={handleResetPassword}
+                  disabled={resetLoading}
+                  className="block w-full text-center text-sm font-semibold text-primary underline-offset-4 hover:underline disabled:opacity-50"
+                >
+                  {resetLoading ? "A enviar..." : "Esqueceu a senha?"}
+                </button>
+              )}
             </div>
           </div>
 
@@ -288,6 +323,11 @@ export function LoginView({ onClient, onEmailAuth, onAdmin, onGuest, onBackToBoo
         {error && (
           <p className="mt-4 flex items-center gap-2 text-sm font-medium text-danger">
             <AlertCircle className="h-4 w-4" /> {error}
+          </p>
+        )}
+        {resetMessage && (
+          <p className="mt-4 flex items-center gap-2 text-sm font-medium text-primary">
+            <CheckCircle2 className="h-4 w-4" /> {resetMessage}
           </p>
         )}
       </Panel>
