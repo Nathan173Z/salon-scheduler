@@ -77,6 +77,28 @@ export function LoginView({ onClient, onEmailAuth, onAdmin, onGuest, onBackToBoo
   const [adminOpen, setAdminOpen] = useState(false);
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const [resetMessage, setResetMessage] = useState("");
+  const [resetLoading, setResetLoading] = useState(false);
+
+  const handleResetPassword = async () => {
+    setError("");
+    setResetMessage("");
+    const target = email.trim();
+    if (!target) {
+      setError("Digita teu email acima para receber o link de redefinição.");
+      return;
+    }
+    setResetLoading(true);
+    try {
+      await sendPasswordResetEmail(auth, target);
+      setResetMessage("Link enviado! Verifica teu email para redefinir a senha.");
+    } catch (authError) {
+      console.error("Erro ao enviar reset de senha:", authError);
+      setError(describeAuthError(authError, "login"));
+    } finally {
+      setResetLoading(false);
+    }
+  };
 
   const handleGoogle = async () => {
     setLoading(true);
