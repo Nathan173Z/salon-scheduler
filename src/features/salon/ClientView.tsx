@@ -295,7 +295,12 @@ export function ClientView({
     <main className="min-h-screen bg-background">
       <header className="border-b border-border bg-card/80 backdrop-blur-xl">
         <div className="mx-auto flex max-w-7xl flex-col gap-4 px-4 py-5 sm:flex-row sm:items-center sm:justify-between lg:px-8">
-          <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={onOpenLogin}
+            className="flex items-center gap-3 rounded-2xl text-left transition hover:opacity-80 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+            aria-label="Voltar à tela inicial"
+          >
             {user.photoURL ? (
               <img src={user.photoURL} alt={user.displayName ?? "Foto do usuário"} className="h-12 w-12 rounded-2xl object-cover" />
             ) : (
@@ -309,7 +314,7 @@ export function ClientView({
               </p>
               <h1 className="text-2xl font-extrabold text-foreground">Teu salão de unhas</h1>
             </div>
-          </div>
+          </button>
           <div className="flex flex-wrap gap-2">
             <Button variant="secondary" type="button" onClick={onOpenLogin}>
               Início / Conta
