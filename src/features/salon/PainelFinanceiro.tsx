@@ -343,6 +343,68 @@ export function PainelFinanceiro() {
         </h1>
       </header>
 
+      {/* Resumo por período */}
+      <div className="mb-6 rounded-2xl border bg-white p-5 shadow-sm" style={{ borderColor: BRAND.border }}>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <CalendarRange className="h-5 w-5" style={{ color: BRAND.primary }} />
+            <h2 className="text-base font-bold" style={{ color: BRAND.ink }}>
+              Resumo do Período
+            </h2>
+            <span className="text-xs" style={{ color: BRAND.inkSoft }}>
+              ({labelPeriodo})
+            </span>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            {(["semana", "mes", "custom"] as Periodo[]).map((p) => (
+              <button
+                key={p}
+                type="button"
+                onClick={() => setPeriodo(p)}
+                className="rounded-full px-3 py-1.5 text-xs font-semibold transition"
+                style={{
+                  background: periodo === p ? BRAND.primary : "transparent",
+                  color: periodo === p ? "#fff" : BRAND.primary,
+                  border: `1px solid ${BRAND.primary}`,
+                }}
+              >
+                {p === "semana" ? "Semanal" : p === "mes" ? "Mensal" : "Personalizado"}
+              </button>
+            ))}
+            {periodo === "custom" && (
+              <div className="flex items-center gap-2">
+                <input
+                  type="date"
+                  value={dataInicio}
+                  onChange={(e) => setDataInicio(e.target.value)}
+                  className="rounded-lg border px-2 py-1 text-xs"
+                  style={{ borderColor: BRAND.border }}
+                />
+                <span className="text-xs" style={{ color: BRAND.inkSoft }}>até</span>
+                <input
+                  type="date"
+                  value={dataFim}
+                  onChange={(e) => setDataFim(e.target.value)}
+                  className="rounded-lg border px-2 py-1 text-xs"
+                  style={{ borderColor: BRAND.border }}
+                />
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <ResumoItem label="Faturamento" valor={brl(resumo.receita)} cor={BRAND.success} />
+          <ResumoItem label="Despesas" valor={brl(resumo.despesas)} cor={BRAND.primaryLight} />
+          <ResumoItem label="Lucro Líquido" valor={brl(resumo.lucro)} cor={BRAND.primary} />
+          <ResumoItem
+            label={`Atendimentos (Ticket ${brl(resumo.ticket)})`}
+            valor={String(resumo.atendidos)}
+            cor={BRAND.ink}
+          />
+        </div>
+      </div>
+
       {/* Linha 1: KPIs */}
       <div className="grid gap-5 md:grid-cols-3">
         <KpiCard
